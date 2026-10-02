@@ -68,7 +68,7 @@ export function MarketingNav() {
               </Link>
               <Link
                 href="/signup"
-                className="inline-flex h-11 items-center rounded-[10px] bg-emerald px-3 text-sm font-semibold text-white shadow-sm hover:opacity-95 sm:px-4"
+                className="inline-flex h-11 items-center rounded-[10px] bg-primary px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-95 sm:px-4"
               >
                 Sign up free
               </Link>

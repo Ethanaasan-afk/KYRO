@@ -106,14 +106,7 @@ export default function MarketingHomePage() {
 
 function HeroSection() {
   return (
-    <section className="relative overflow-hidden">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 55% at 15% -10%, rgba(29,78,216,0.14), transparent), radial-gradient(ellipse 50% 40% at 90% 20%, rgba(16,185,129,0.10), transparent)",
-        }}
-      />
+    <section className="relative overflow-hidden bg-slate-50/50">
       <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-12">
         <div className="animate-marketing-fade">
           <p className="font-display text-sm font-semibold tracking-tight text-primary">
