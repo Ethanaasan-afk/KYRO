@@ -306,78 +306,78 @@ a,
 
 .panel-header-teal {
   border-bottom-color: color-mix(in srgb, var(--primary) 28%, var(--border));
-  background: linear-gradient(90deg, var(--primary-soft), transparent 70%);
+  background: rgba(29, 78, 216, 0.04);
 }
 
 .panel-header-aqua {
   border-bottom-color: color-mix(in srgb, var(--aqua) 28%, var(--border));
-  background: linear-gradient(90deg, var(--aqua-wash), transparent 70%);
+  background: rgba(56, 189, 248, 0.04);
 }
 
 .panel-header-sun {
   border-bottom-color: color-mix(in srgb, var(--sun-deep) 28%, var(--border));
-  background: linear-gradient(90deg, var(--sun-wash), transparent 70%);
+  background: rgba(251, 191, 36, 0.06);
 }
 
 .panel-header-tangerine {
   border-bottom-color: color-mix(in srgb, var(--tangerine) 28%, var(--border));
-  background: linear-gradient(90deg, var(--tangerine-wash), transparent 70%);
+  background: rgba(245, 158, 11, 0.06);
 }
 
 .panel-header-coral {
   border-bottom-color: color-mix(in srgb, var(--coral) 28%, var(--border));
-  background: linear-gradient(90deg, rgba(239, 68, 68, 0.1), transparent 70%);
+  background: rgba(244, 63, 94, 0.05);
 }
 
 .panel-header-sage {
   border-bottom-color: color-mix(in srgb, var(--sage) 28%, var(--border));
-  background: linear-gradient(90deg, var(--sage-soft), transparent 70%);
+  background: rgba(16, 185, 129, 0.05);
 }
 
 /* Stat card washes */
 .wash-aqua {
-  background: linear-gradient(160deg, var(--aqua-wash), var(--surface) 72%);
-  border-color: color-mix(in srgb, var(--aqua) 28%, var(--border));
+  background: rgba(56, 189, 248, 0.04);
+  border-color: color-mix(in srgb, var(--aqua) 20%, var(--border));
 }
 
 .wash-sun {
-  background: linear-gradient(160deg, var(--sun-wash), var(--surface) 72%);
-  border-color: color-mix(in srgb, var(--sun-deep) 24%, var(--border));
+  background: rgba(251, 191, 36, 0.05);
+  border-color: color-mix(in srgb, var(--sun-deep) 20%, var(--border));
 }
 
 .wash-tangerine {
-  background: linear-gradient(160deg, var(--tangerine-wash), var(--surface) 72%);
-  border-color: color-mix(in srgb, var(--tangerine) 28%, var(--border));
+  background: rgba(245, 158, 11, 0.05);
+  border-color: color-mix(in srgb, var(--tangerine) 20%, var(--border));
 }
 
 .wash-teal {
-  background: linear-gradient(160deg, var(--primary-soft), var(--surface) 72%);
-  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: rgba(29, 78, 216, 0.04);
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
 }
 
 .wash-violet {
-  background: linear-gradient(160deg, var(--violet-soft), var(--surface) 72%);
-  border-color: color-mix(in srgb, var(--violet) 28%, var(--border));
+  background: rgba(124, 58, 237, 0.04);
+  border-color: color-mix(in srgb, var(--violet) 20%, var(--border));
 }
 
 .wash-sage {
-  background: linear-gradient(160deg, var(--sage-soft), var(--surface) 72%);
-  border-color: color-mix(in srgb, var(--sage) 28%, var(--border));
+  background: rgba(16, 185, 129, 0.04);
+  border-color: color-mix(in srgb, var(--sage) 20%, var(--border));
 }
 
 /* NET urgency banners */
 .net-loss {
-  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
-  color: #fff;
-  border: none;
-  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.28);
+  background: rgba(244, 63, 94, 0.08);
+  color: var(--coral-deep);
+  border: 1px solid rgba(244, 63, 94, 0.15);
+  box-shadow: none;
 }
 
 .net-gain {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: #fff;
-  border: none;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.28);
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--sage);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  box-shadow: none;
 }
 
 .panel-accent-violet {
