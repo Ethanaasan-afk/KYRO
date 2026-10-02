@@ -1,114 +1,278 @@
 "use client";
 
-const summaryStats = [
-  { label: "Sales", value: "0", meta: "Today 8 · Paid 8", accent: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" },
-  { label: "SKUs active", value: "0/0", meta: "Out 0 · Low 0", accent: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
-  { label: "Retail", value: "0", meta: "1 retail · 0 wholesale", accent: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
-  { label: "Outstanding", value: "₹0.00", meta: "0 customers with balance", accent: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300" },
-];
+import { LoadingBlock, PageHeader } from "@/components/ui/page-header";
+import { useCustomers } from "@/hooks/use-customers";
+import { useInvoices } from "@/hooks/use-invoices";
+import { usePayments } from "@/hooks/use-payments";
+import { useProducts } from "@/hooks/use-products";
+import { buildOutstandingRows } from "@/lib/customer-ledger";
+import { formatINR } from "@/lib/utils";
+import { ArrowUpRight, Boxes, CircleAlert, Package, Plus, ReceiptText, Users } from "lucide-react";
+import Link from "next/link";
+import { useMemo } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const tooltipStyle = {
+  borderRadius: 10,
+  border: "1px solid var(--border)",
+  background: "var(--surface)",
+  color: "var(--ink)",
+  fontSize: 12,
+  boxShadow: "var(--card-shadow)",
+};
 
 export default function DashboardPage() {
+  const { data: invoices, isLoading: loadingInvoices } = useInvoices();
+  const { data: products, isLoading: loadingProducts } = useProducts();
+  const { data: customers, isLoading: loadingCustomers } = useCustomers();
+  const { data: payments, isLoading: loadingPayments } = usePayments();
+
+  const stats = useMemo(() => {
+    const today = new Date();
+    const todayKey = dateKey(today);
+    const monthPrefix = todayKey.slice(0, 7);
+    const start = new Date(today);
+    start.setDate(start.getDate() - 29);
+    const startKey = dateKey(start);
+    const activeInvoices = (invoices ?? []).filter((invoice) => invoice.status !== "cancelled");
+    const todayInvoices = activeInvoices.filter((invoice) => invoice.invoice_date === todayKey);
+    const monthInvoices = activeInvoices.filter((invoice) => invoice.invoice_date.startsWith(monthPrefix));
+    const revenueByDay = new Map<string, number>();
+
+    for (const invoice of activeInvoices) {
+      if (invoice.invoice_date >= startKey && invoice.invoice_date <= todayKey) {
+        revenueByDay.set(
+          invoice.invoice_date,
+          (revenueByDay.get(invoice.invoice_date) ?? 0) + Number(invoice.grand_total)
+        );
+      }
+    }
+
+    const revenueTrend = Array.from({ length: 30 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const key = dateKey(date);
+      return {
+        date: key,
+        label: date.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+        revenue: revenueByDay.get(key) ?? 0,
+      };
+    });
+
+    const activeProducts = (products ?? []).filter((product) => product.is_active);
+    const stockByProduct = activeProducts
+      .filter((product) => Number(product.current_stock ?? 0) > 0)
+      .sort((a, b) => Number(b.current_stock ?? 0) - Number(a.current_stock ?? 0))
+      .slice(0, 5)
+      .map((product) => ({
+        name: product.name,
+        units: Number(product.current_stock ?? 0),
+      }));
+    const lowStock = activeProducts.filter((product) => {
+      const quantity = Number(product.current_stock ?? 0);
+      return quantity > 0 && quantity <= Number(product.reorder_threshold ?? 0);
+    }).length;
+    const outOfStock = activeProducts.filter((product) => Number(product.current_stock ?? 0) <= 0).length;
+    const outstandingRows = buildOutstandingRows(customers ?? [], invoices ?? [], payments ?? []);
+    const totalOutstanding = outstandingRows.reduce((sum, row) => sum + row.outstanding, 0);
+
+    return {
+      todayRevenue: todayInvoices.reduce((sum, invoice) => sum + Number(invoice.grand_total), 0),
+      todayCount: todayInvoices.length,
+      todayPaidCount: todayInvoices.filter((invoice) => invoice.status === "paid").length,
+      monthCount: monthInvoices.length,
+      last30Revenue: revenueTrend.reduce((sum, day) => sum + day.revenue, 0),
+      revenueTrend,
+      activeProductCount: activeProducts.length,
+      totalProductCount: (products ?? []).length,
+      totalUnits: activeProducts.reduce((sum, product) => sum + Number(product.current_stock ?? 0), 0),
+      lowStock,
+      outOfStock,
+      stockByProduct,
+      retailCount: (customers ?? []).filter((customer) => customer.customer_type === "b2c").length,
+      wholesaleCount: (customers ?? []).filter((customer) => customer.customer_type === "b2b").length,
+      totalOutstanding,
+      outstandingCount: outstandingRows.length,
+    };
+  }, [customers, invoices, payments, products]);
+
+  if (loadingInvoices || loadingProducts || loadingCustomers || loadingPayments) return <LoadingBlock />;
+
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 xl:grid-cols-[1.6fr_0.9fr]">
-        <div className="rounded-[18px] border border-border bg-surface shadow-card">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <path d="M4 18h16v2H4zm1-3h2v2H5zm4-3h2v5h-2zm4-6h2v11h-2zm4 2h2v9h-2z" />
-                </svg>
-              </div>
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">Revenue</div>
-                <div className="text-3xl font-bold tracking-tight text-ink">₹0.00</div>
-              </div>
-            </div>
-            <div className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
-              Today
-            </div>
-          </div>
+    <div>
+      <PageHeader
+        eyebrow="Overview"
+        title="Dashboard"
+        description="Your live billing pulse: sales, stock and customers."
+        actions={
+          <Link
+            href="/invoices/new"
+            className="btn-gradient inline-flex min-h-[44px] items-center gap-2 rounded-button px-4 text-sm font-semibold"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            New invoice
+          </Link>
+        }
+      />
 
-          <div className="p-5">
-            <div className="mb-3 text-sm text-slate">0 invoices this month · no sales in range yet</div>
-            <div className="h-52 overflow-hidden rounded-[14px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#38bdf8] p-4 text-white">
-              <svg viewBox="0 0 560 180" className="h-full w-full" preserveAspectRatio="none" aria-label="Revenue chart">
-                {[0, 25, 50, 75, 100].map((line) => (
-                  <line key={line} x1="0" x2="560" y1={line} y2={line} stroke="rgba(255,255,255,0.16)" strokeDasharray="4 6" />
-                ))}
-                <path d="M0 150 C 60 120, 120 120, 170 130 S 260 150, 310 140 S 420 90, 560 90" fill="none" stroke="rgba(255,255,255,0.96)" strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div className="mt-3 text-center text-xs text-slate">No invoice revenue recorded yet · chart fills as sales are booked.</div>
-          </div>
-        </div>
-
-        <div className="rounded-[18px] border border-border bg-surface p-5 shadow-card">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">Units on hand</div>
-            <div className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">0</div>
-          </div>
-          <div className="mt-6 text-3xl font-bold tracking-tight text-ink">0</div>
-          <div className="mt-2 text-sm text-slate">No stock movements yet · trend appears after stock in/out activity.</div>
-          <div className="mt-6 h-20 rounded-[12px] border border-border bg-cloud" />
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {summaryStats.map((stat) => (
-          <div key={stat.label} className="rounded-[16px] border border-border bg-surface p-4 shadow-card">
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">{stat.label}</span>
-              <span className={`rounded-lg p-2 ${stat.accent}`}>
-                <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                  <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4zm0 5.5L7 9v5c0 3.2 2.1 6.3 5 6.8 2.9-.5 5-3.6 5-6.8V9l-5-1.5z" />
-                </svg>
-              </span>
-            </div>
-            <div className="text-4xl font-bold tracking-tight text-ink">{stat.value}</div>
-            <div className="mt-3 text-sm text-slate">{stat.meta}</div>
-          </div>
-        ))}
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[18px] border border-border bg-surface p-5 shadow-card">
-          <div className="mb-4 flex items-center justify-between">
+      <section className="grid gap-4 xl:grid-cols-[1.9fr_0.9fr]">
+        <article className="relative min-h-[300px] overflow-hidden rounded-[14px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#38bdf8] p-5 text-white shadow-[0_12px_30px_rgba(29,78,216,0.18)] sm:min-h-[350px] sm:p-6">
+          <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border border-white/10" />
+          <div className="pointer-events-none absolute -right-4 -top-12 h-44 w-44 rounded-full border border-white/10" />
+          <div className="relative flex items-start justify-between gap-4">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">This month</div>
-              <div className="mt-1 text-[28px] font-bold tracking-tight text-ink">₹0.00</div>
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/80">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15">
+                  <ReceiptText className="h-4 w-4" aria-hidden />
+                </span>
+                Revenue · Last 30 days
+              </div>
+              <div className="mt-3 font-display text-4xl font-bold tracking-tight sm:text-[2.75rem]">
+                {formatINR(stats.last30Revenue)}
+              </div>
+              <p className="mt-1 text-sm text-white/85">
+                {stats.monthCount} invoice{stats.monthCount === 1 ? "" : "s"} this month
+              </p>
             </div>
-            <div className="rounded-lg bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-              Net
+            <div className="shrink-0 rounded-[10px] border border-white/15 bg-white/15 px-3 py-2 text-right backdrop-blur-sm">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/75">Today</div>
+              <div className="font-mono text-base font-semibold tabular-nums">{formatINR(stats.todayRevenue)}</div>
             </div>
           </div>
-          <div className="mb-3 flex items-center justify-between text-xs text-slate">
-            <span>Revenue</span>
-            <span>₹0.00</span>
-          </div>
-          <div className="h-28 rounded-[12px] border border-dashed border-border bg-cloud/60" />
-        </div>
 
-        <div className="rounded-[18px] border border-border bg-surface p-5 shadow-card">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">Stock mix</div>
-            <div className="rounded-lg bg-cyan-100 p-2 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-                <path d="M4 6h16v12H4zm2 2v8h12V8zm2 2h8v2H8zm0 4h6v2H8z" />
-              </svg>
+          <div className="relative mt-7 h-[170px] sm:mt-9 sm:h-[190px]">
+            {stats.last30Revenue > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.revenueTrend} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.2)" strokeDasharray="3 6" />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fill: "rgba(255,255,255,0.75)", fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={6}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(value) => [formatINR(Number(value ?? 0)), "Revenue"]}
+                    labelStyle={{ color: "var(--slate)" }}
+                  />
+                  <Bar dataKey="revenue" fill="rgba(255,255,255,0.9)" radius={[3, 3, 0, 0]} maxBarSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-[10px] border border-white/15 bg-white/[0.06] px-5 text-center text-sm font-medium text-white/80">
+                No invoice revenue recorded yet. Your chart will fill as sales are booked.
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className="rounded-[14px] border border-sky-200/70 bg-gradient-to-br from-sky-50 to-surface p-5 shadow-card dark:border-sky-900/60 dark:from-sky-950/30 dark:to-surface">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">
+                <Package className="h-4 w-4 text-primary" aria-hidden />
+                Units on hand
+              </div>
+              <div className="mt-2 font-display text-3xl font-bold tracking-tight text-ink">
+                {stats.totalUnits.toLocaleString()}
+              </div>
             </div>
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              {stats.activeProductCount} SKUs
+            </span>
           </div>
-          <div className="flex items-center justify-center">
-            <div className="relative h-28 w-28 rounded-full border-[10px] border-cyan-300 bg-cyan-50 dark:border-cyan-500 dark:bg-cyan-900/20">
-              <div className="absolute inset-3 rounded-full border-[16px] border-transparent border-t-cyan-500 border-r-cyan-500" />
-            </div>
+
+          <div className="mt-5 h-[170px]">
+            {stats.stockByProduct.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.stockByProduct} layout="vertical" margin={{ top: 0, right: 8, left: 2, bottom: 0 }}>
+                  <CartesianGrid horizontal={false} stroke="var(--border)" strokeDasharray="3 6" />
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={78}
+                    tick={{ fill: "var(--slate)", fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(name: string) => name.length > 12 ? `${name.slice(0, 11)}…` : name}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(value) => [`${Number(value ?? 0).toLocaleString()} units`, "On hand"]}
+                    labelStyle={{ color: "var(--slate)" }}
+                  />
+                  <Bar dataKey="units" fill="var(--primary)" radius={[0, 4, 4, 0]} maxBarSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-border text-center text-sm text-slate">
+                No stock recorded yet.
+              </div>
+            )}
           </div>
-          <div className="mt-4 space-y-2 text-sm text-slate">
-            <div className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-cyan-500" />In stock</span><span>2</span></div>
-            <div className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" />Low</span><span>8</span></div>
-            <div className="flex items-center justify-between"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-rose-400" />Out</span><span>0</span></div>
+          <p className="mt-2 text-xs text-slate">{stats.stockByProduct.length ? "Top products by current quantity" : "Stock appears here when products are added."}</p>
+        </article>
+      </section>
+
+      <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Business summary">
+        <Link href="/invoices" className="group rounded-[12px] border border-border bg-surface p-4 shadow-card transition-colors hover:border-primary/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate">Sales today</span>
+            <span className="rounded-lg bg-sky-100 p-2 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"><ReceiptText className="h-4 w-4" aria-hidden /></span>
           </div>
-        </div>
+          <div className="mt-3 font-display text-3xl font-bold tracking-tight text-ink">{stats.todayCount}</div>
+          <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate">
+            <span>{stats.todayPaidCount} paid · {formatINR(stats.todayRevenue)}</span>
+            <ArrowUpRight className="h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+          </div>
+        </Link>
+
+        <Link href="/inventory" className="group rounded-[12px] border border-border bg-surface p-4 shadow-card transition-colors hover:border-primary/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate">Active SKUs</span>
+            <span className="rounded-lg bg-amber-100 p-2 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"><Boxes className="h-4 w-4" aria-hidden /></span>
+          </div>
+          <div className="mt-3 font-display text-3xl font-bold tracking-tight text-ink">
+            {stats.activeProductCount}<span className="text-lg font-medium text-slate"> / {stats.totalProductCount}</span>
+          </div>
+          <div className="mt-1 text-xs text-slate">{stats.outOfStock} out · {stats.lowStock} low stock</div>
+        </Link>
+
+        <Link href="/customers" className="group rounded-[12px] border border-border bg-surface p-4 shadow-card transition-colors hover:border-primary/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate">Customers</span>
+            <span className="rounded-lg bg-violet-100 p-2 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"><Users className="h-4 w-4" aria-hidden /></span>
+          </div>
+          <div className="mt-3 font-display text-3xl font-bold tracking-tight text-ink">{stats.retailCount + stats.wholesaleCount}</div>
+          <div className="mt-1 text-xs text-slate">{stats.retailCount} retail · {stats.wholesaleCount} wholesale</div>
+        </Link>
+
+        <Link href="/outstanding" className="group rounded-[12px] border border-border bg-surface p-4 shadow-card transition-colors hover:border-primary/40">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate">Outstanding</span>
+            <span className="rounded-lg bg-rose-100 p-2 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"><CircleAlert className="h-4 w-4" aria-hidden /></span>
+          </div>
+          <div className="mt-3 font-display text-2xl font-bold tracking-tight text-ink">{formatINR(stats.totalOutstanding)}</div>
+          <div className="mt-1 text-xs text-slate">{stats.outstandingCount} customer{stats.outstandingCount === 1 ? "" : "s"} with balance</div>
+        </Link>
       </section>
     </div>
   );
