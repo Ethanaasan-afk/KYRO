@@ -35,7 +35,13 @@ function buildPath(points: { x: number; y: number }[]) {
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-[#050b12] px-4 py-8 text-white sm:px-8 lg:px-10">
+    <div
+      className="min-h-screen px-4 py-8 text-white sm:px-8 lg:px-10"
+      style={{
+        background:
+          "radial-gradient(circle at top, rgba(255,255,255,0.05), transparent 30%), linear-gradient(180deg, #050b12 0%, #070d14 100%)",
+      }}
+    >
       <div className="mx-auto max-w-6xl space-y-12">
         <section className="grid gap-4 md:grid-cols-2">
           <div className="rounded-[18px] border border-[#2b3745] bg-[#0c121a] p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
