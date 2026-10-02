@@ -337,7 +337,7 @@ export function Sidebar() {
         {NavLinks}
       </aside>
 
-      <aside className="sidebar-shell sticky top-0 hidden h-screen w-64 shrink-0 flex-col p-4 md:flex">
+      <aside className="sidebar-shell sticky top-0 hidden h-screen w-[17rem] shrink-0 flex-col p-4 md:flex">
         {NavLinks}
       </aside>
     </>

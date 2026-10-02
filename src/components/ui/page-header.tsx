@@ -39,11 +39,13 @@ export function PageHeader({
   actions,
   eyebrow,
   accent,
+  titleClassName,
 }: {
   title: string;
   description?: string;
   actions?: React.ReactNode;
   eyebrow?: string;
+  titleClassName?: string;
   /** Category accent for page identity */
   accent?: "teal" | "aqua" | "sun" | "tangerine" | "coral" | "sage" | "violet";
 }) {
@@ -74,7 +76,7 @@ export function PageHeader({
         )}
         <div className="flex items-center gap-3">
           <span className={`h-8 w-1.5 shrink-0 rounded-full ${accentBar}`} aria-hidden />
-          <h1 className="font-display text-xl font-bold tracking-tight text-ink sm:text-2xl md:text-[1.75rem]">
+          <h1 className={cn("font-display text-xl font-bold tracking-tight text-ink sm:text-2xl md:text-[1.75rem]", titleClassName)}>
             {title}
           </h1>
         </div>

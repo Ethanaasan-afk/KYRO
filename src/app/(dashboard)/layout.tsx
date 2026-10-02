@@ -9,9 +9,11 @@ import { TrialBanner } from "@/components/layout/trial-banner";
 import { Button } from "@/components/ui/button";
 import { LoadingBlock } from "@/components/ui/page-header";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { loading, user, unlinked, sessionEmail, signOut } = useAuth();
+  const pathname = usePathname();
 
   if (loading) {
     return (
@@ -51,7 +53,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen bg-cloud">
+    <div className={`flex min-h-screen ${pathname === "/dashboard" ? "dashboard-shell" : "bg-cloud"}`}>
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
         <DemoBanner />

@@ -10,9 +10,9 @@ import type { StockMovement } from "@/lib/types";
 import { useOrgAccess } from "@/hooks/use-org-access";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-export function useStockMovements(productId?: string) {
+export function useStockMovements(productId?: string, since?: string) {
   return useQuery({
-    queryKey: ["stock_movements", productId ?? "all"],
+    queryKey: ["stock_movements", productId ?? "all", since ?? ""],
     queryFn: async () => {
       if (isDemoMode()) return demoDb.getMovements(productId);
 
@@ -23,8 +23,9 @@ export function useStockMovements(productId?: string) {
           "*, product:products(*), user:users!created_by(*), editor:users!edited_by(*)"
         )
         .order("created_at", { ascending: false })
-        .limit(200);
+        .limit(since ? 1000 : 200);
       if (productId) q = q.eq("product_id", productId);
+      if (since) q = q.gte("created_at", since);
       let { data, error } = await q;
 
       // Fallback if edited_by column / FK not migrated yet
@@ -33,8 +34,9 @@ export function useStockMovements(productId?: string) {
           .from("stock_movements")
           .select("*, product:products(*), user:users!created_by(*)")
           .order("created_at", { ascending: false })
-          .limit(200);
+          .limit(since ? 1000 : 200);
         if (productId) q2 = q2.eq("product_id", productId);
+        if (since) q2 = q2.gte("created_at", since);
         const retry = await q2;
         if (retry.error) throw retry.error;
         data = retry.data;
