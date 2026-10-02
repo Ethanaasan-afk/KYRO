@@ -5,6 +5,7 @@ import { useCustomers } from "@/hooks/use-customers";
 import { useInvoices } from "@/hooks/use-invoices";
 import { usePayments } from "@/hooks/use-payments";
 import { useProducts } from "@/hooks/use-products";
+import { useStockMovements } from "@/hooks/use-inventory";
 import { buildOutstandingRows } from "@/lib/customer-ledger";
 import { formatINR } from "@/lib/utils";
 import { ArrowUpRight, Boxes, CircleAlert, Package, Plus, ReceiptText, Users } from "lucide-react";
@@ -15,6 +16,8 @@ import {
   BarChart,
   CartesianGrid,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
@@ -36,11 +39,14 @@ const tooltipStyle = {
   boxShadow: "var(--card-shadow)",
 };
 
+const stockColors = ["#84cc16", "#ec4899", "#34d399", "#2dd4bf", "#a855f7"];
+
 export default function DashboardPage() {
   const { data: invoices, isLoading: loadingInvoices } = useInvoices();
   const { data: products, isLoading: loadingProducts } = useProducts();
   const { data: customers, isLoading: loadingCustomers } = useCustomers();
   const { data: payments, isLoading: loadingPayments } = usePayments();
+  const { data: movements, isLoading: loadingMovements } = useStockMovements();
 
   const stats = useMemo(() => {
     const today = new Date();
@@ -75,14 +81,33 @@ export default function DashboardPage() {
     });
 
     const activeProducts = (products ?? []).filter((product) => product.is_active);
-    const stockByProduct = activeProducts
-      .filter((product) => Number(product.current_stock ?? 0) > 0)
-      .sort((a, b) => Number(b.current_stock ?? 0) - Number(a.current_stock ?? 0))
+    const recentMovements = (movements ?? [])
+      .filter((movement) => {
+        const timestamp = new Date(movement.created_at).getTime();
+        return timestamp >= start.getTime() && timestamp <= today.getTime();
+      })
+      .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const movementGroups = new Map<string, typeof recentMovements>();
+    for (const movement of recentMovements) {
+      const productMovements = movementGroups.get(movement.product_id) ?? [];
+      productMovements.push(movement);
+      movementGroups.set(movement.product_id, productMovements);
+    }
+    const stockTrend = activeProducts
+      .flatMap((product) => {
+        const productMovements = movementGroups.get(product.id) ?? [];
+        if (!productMovements.length) return [];
+        const movementTotal = productMovements.reduce((sum, movement) => sum + Number(movement.quantity), 0);
+        let runningUnits = Number(product.current_stock ?? 0) - movementTotal;
+        const points = productMovements.map((movement) => {
+          runningUnits += Number(movement.quantity);
+          return { x: new Date(movement.created_at).getTime(), y: runningUnits };
+        });
+        return [{ id: product.id, name: product.name, points, movementCount: points.length }];
+      })
+      .sort((a, b) => b.movementCount - a.movementCount)
       .slice(0, 5)
-      .map((product) => ({
-        name: product.name,
-        units: Number(product.current_stock ?? 0),
-      }));
+      .map((series, index) => ({ ...series, color: stockColors[index] }));
     const lowStock = activeProducts.filter((product) => {
       const quantity = Number(product.current_stock ?? 0);
       return quantity > 0 && quantity <= Number(product.reorder_threshold ?? 0);
@@ -98,20 +123,26 @@ export default function DashboardPage() {
       monthCount: monthInvoices.length,
       last30Revenue: revenueTrend.reduce((sum, day) => sum + day.revenue, 0),
       revenueTrend,
+      chartStart: start.getTime(),
+      chartEnd: today.getTime(),
       activeProductCount: activeProducts.length,
       totalProductCount: (products ?? []).length,
       totalUnits: activeProducts.reduce((sum, product) => sum + Number(product.current_stock ?? 0), 0),
+      stockValue: activeProducts.reduce(
+        (sum, product) => sum + Number(product.current_stock ?? 0) * Number(product.base_price ?? 0),
+        0
+      ),
       lowStock,
       outOfStock,
-      stockByProduct,
+      stockTrend,
       retailCount: (customers ?? []).filter((customer) => customer.customer_type === "b2c").length,
       wholesaleCount: (customers ?? []).filter((customer) => customer.customer_type === "b2b").length,
       totalOutstanding,
       outstandingCount: outstandingRows.length,
     };
-  }, [customers, invoices, payments, products]);
+  }, [customers, invoices, movements, payments, products]);
 
-  if (loadingInvoices || loadingProducts || loadingCustomers || loadingPayments) return <LoadingBlock />;
+  if (loadingInvoices || loadingProducts || loadingCustomers || loadingPayments || loadingMovements) return <LoadingBlock />;
 
   return (
     <div>
@@ -131,7 +162,7 @@ export default function DashboardPage() {
       />
 
       <section className="grid gap-4 xl:grid-cols-[1.9fr_0.9fr]">
-        <article className="relative min-h-[300px] overflow-hidden rounded-[14px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#38bdf8] p-5 text-white shadow-[0_12px_30px_rgba(29,78,216,0.18)] sm:min-h-[350px] sm:p-6">
+        <article className="relative min-h-[400px] overflow-hidden rounded-[14px] bg-gradient-to-br from-[#1d4ed8] via-[#2563eb] to-[#38bdf8] p-5 text-white shadow-[0_12px_30px_rgba(29,78,216,0.18)] sm:p-6">
           <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border border-white/10" />
           <div className="pointer-events-none absolute -right-4 -top-12 h-44 w-44 rounded-full border border-white/10" />
           <div className="relative flex items-start justify-between gap-4">
@@ -183,7 +214,7 @@ export default function DashboardPage() {
           </div>
         </article>
 
-        <article className="rounded-[14px] border border-sky-200/70 bg-gradient-to-br from-sky-50 to-surface p-5 shadow-card dark:border-sky-900/60 dark:from-sky-950/30 dark:to-surface">
+        <article className="rounded-[14px] border border-sky-200/70 bg-gradient-to-br from-sky-50 to-surface p-5 shadow-card dark:border-sky-900/60 dark:from-sky-950/30 dark:to-surface xl:min-h-[400px]">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">
@@ -198,37 +229,50 @@ export default function DashboardPage() {
               {stats.activeProductCount} SKUs
             </span>
           </div>
+          <p className="mt-1 text-right font-mono text-xs tabular-nums text-slate">{formatINR(stats.stockValue)}</p>
 
-          <div className="mt-5 h-[170px]">
-            {stats.stockByProduct.length ? (
+          <div className="mt-4 h-[210px]">
+            {stats.stockTrend.length ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.stockByProduct} layout="vertical" margin={{ top: 0, right: 8, left: 2, bottom: 0 }}>
-                  <CartesianGrid horizontal={false} stroke="var(--border)" strokeDasharray="3 6" />
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={78}
+                <ScatterChart margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--border)" strokeDasharray="3 6" />
+                  <XAxis
+                    type="number"
+                    dataKey="x"
+                    domain={[stats.chartStart, stats.chartEnd]}
+                    tickFormatter={(timestamp: number) => new Date(timestamp).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                     tick={{ fill: "var(--slate)", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(name: string) => name.length > 12 ? `${name.slice(0, 11)}…` : name}
+                    minTickGap={22}
                   />
+                  <YAxis type="number" dataKey="y" tick={{ fill: "var(--slate)", fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
                   <Tooltip
                     contentStyle={tooltipStyle}
+                    labelFormatter={(timestamp) => new Date(Number(timestamp)).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                     formatter={(value) => [`${Number(value ?? 0).toLocaleString()} units`, "On hand"]}
                     labelStyle={{ color: "var(--slate)" }}
                   />
-                  <Bar dataKey="units" fill="var(--primary)" radius={[0, 4, 4, 0]} maxBarSize={18} />
-                </BarChart>
+                  {stats.stockTrend.map((series) => (
+                    <Scatter key={series.id} name={series.name} data={series.points} fill={series.color} isAnimationActive={false} />
+                  ))}
+                </ScatterChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-border text-center text-sm text-slate">
-                No stock recorded yet.
+              <div className="flex h-full items-center justify-center rounded-[10px] border border-dashed border-border px-4 text-center text-sm text-slate">
+                No stock movements in the last 30 days.
               </div>
             )}
           </div>
-          <p className="mt-2 text-xs text-slate">{stats.stockByProduct.length ? "Top products by current quantity" : "Stock appears here when products are added."}</p>
+          <div className="mt-2 flex flex-wrap gap-x-2.5 gap-y-1 text-[10px] text-slate">
+            {stats.stockTrend.map((series) => (
+              <span key={series.id} className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: series.color }} />
+                {series.name}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-slate">Reconstructed from stock movements · last 30 days</p>
         </article>
       </section>
 

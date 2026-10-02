@@ -15,7 +15,7 @@ export const BRAND_LOGO_FULL = "/logo/aasanbill-full.png";
 export const LEGAL_ENTITY_NAME = "Focused Folks Solutions LLP";
 export const LEGAL_ENTITY_ADDRESS =
   "236, Seventh Heaven, Ahmedabad, Gujarat, 380055";
-export const LEGAL_SUPPORT_EMAIL = "info.focusedfolks@gmail.com";
+export const LEGAL_SUPPORT_EMAIL = "support.aasanbill@gmail.com";
 export const LEGAL_PRIVACY_UPDATED = "4 August 2026";
 export const LEGAL_TERMS_UPDATED = "4 August 2026";
 export const LEGAL_REFUNDS_UPDATED = "4 August 2026";
