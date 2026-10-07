@@ -9,7 +9,7 @@ import { memoryLimit, tooManyRequests } from "@/lib/security/rate-limit";
 
 export async function POST() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

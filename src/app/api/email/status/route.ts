@@ -10,7 +10,7 @@ export async function GET() {
   if (isDemoMode()) {
     return NextResponse.json({ configured: true, provider: "demo", fromAddress: "demo@kyro.local" });
   }
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -6,7 +6,7 @@ import { serverError } from "@/lib/security/request";
 
 export async function POST() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

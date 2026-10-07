@@ -1,4 +1,6 @@
 const isDev = process.env.NODE_ENV !== "production";
+/** Vercel serves only HTTPS; plain-http local runs must not force https. */
+const isVercel = Boolean(process.env.VERCEL);
 
 /** Origin of the Supabase project (API, auth, storage, realtime). */
 function supabaseOrigins() {
@@ -19,11 +21,11 @@ const razorpay = "https://*.razorpay.com";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""} https://checkout.razorpay.com https://vercel.live`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ""} ${razorpay} https://vercel.live`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${supabase[0] ?? ""} ${razorpay}`.trim(),
   "font-src 'self' data:",
-  `connect-src 'self' ${supabase.join(" ")} ${razorpay} https://cdn.jsdelivr.net https://vercel.live${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self' data: blob: ${supabase.join(" ")} ${razorpay} https://cdn.jsdelivr.net https://vercel.live${isDev ? " ws: wss:" : ""}`,
   `frame-src 'self' blob: ${razorpay} https://vercel.live`,
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
@@ -31,7 +33,7 @@ const csp = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  ...(isDev ? [] : ["upgrade-insecure-requests"]),
+  ...(isVercel ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [

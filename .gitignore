@@ -43,3 +43,7 @@ next-env.d.ts
 /videos/*/assets/screens/
 /videos/*/snapshots/
 /videos/*/.thumbnails/
+
+# local scratch output (test PDFs, reports)
+/tmp/
+/test-*.pdf

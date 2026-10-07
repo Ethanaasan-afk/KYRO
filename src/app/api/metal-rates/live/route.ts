@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 /** Returns latest cached live rates; refreshes from Metals.Dev if older than 10 minutes. */
 export async function GET() {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

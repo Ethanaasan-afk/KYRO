@@ -15,7 +15,7 @@ function uniqueSlug(base: string): string {
 
 export async function POST(request: Request) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user: authUser },
     } = await supabase.auth.getUser();

@@ -45,7 +45,12 @@ export function getAppBaseUrl(request?: Request): string {
   const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
   if (fromEnv) return fromEnv;
 
-  if (request) {
+  // On Vercel, use the project's own domain. Never trust the Host header in
+  // production: a forged one would put someone else's link in customer emails.
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  if (vercelHost) return `https://${vercelHost.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+
+  if (request && process.env.NODE_ENV !== "production") {
     const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
     const proto =
       request.headers.get("x-forwarded-proto") ||

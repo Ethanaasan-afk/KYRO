@@ -2,7 +2,7 @@
 workflow: general-video
 flow: automation
 storyboard: no
-message: "VAT billing that just flows - from invoice to VAT return, in one place"
+message: "VAT billing done in seconds - from invoice to VAT return, in one place"
 destination: website-hero
 aspect: 1920x1080
 language: en
@@ -13,14 +13,14 @@ angle: product-demo
 
 ## Intent
 
-Hero / showcase video for the NovaFlow landing page. Real screens of the app
+Hero / showcase video for the KYRO landing page. Real screens of the app
 (demo data) animated like a modern SaaS launch film - confident, fast, smooth.
 Plays muted, autoplay, loop, so every beat has to read without sound.
 
 ## Assets
 
 - assets/img/*.jpg - 3200x1800 screenshots of the live app in demo mode (dashboard, invoice wizard steps, VAT 201, customers, products, invoices, settings)
-- assets/img/logo-mark.png - transparent NovaFlow N mark
+- assets/img/logo-mark.png - transparent KYRO mark
 
 ## Customizations
 

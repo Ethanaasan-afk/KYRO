@@ -34,13 +34,14 @@ const MAX_PDF_BYTES = 6 * 1024 * 1024;
  *   200 { ok: true, id, pdfUrl }
  *   503 { error: "not_configured", pdfUrl, subject, text } → client falls back to the mail app
  */
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id: invoiceId } = await params;
   try {
     if (isDemoMode()) {
       return NextResponse.json({ error: "Demo mode sends emails locally." }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -94,7 +95,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .select(
         "id, invoice_number, invoice_date, grand_total, amount_paid, currency, status, organization_id, customer:customers(id, name, email)"
       )
-      .eq("id", params.id)
+      .eq("id", invoiceId)
       .eq("organization_id", orgId)
       .single();
     if (invErr || !invoice) {

@@ -17,7 +17,7 @@ const MAX_PDF_BYTES = 6 * 1024 * 1024;
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (isDemoMode()) {
@@ -27,8 +27,8 @@ export async function POST(
       );
     }
 
-    const invoiceId = params.id;
-    const supabase = createClient();
+    const { id: invoiceId } = await params;
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

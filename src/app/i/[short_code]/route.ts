@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   request: Request,
-  { params }: { params: { short_code: string } }
+  { params }: { params: Promise<{ short_code: string }> }
 ) {
   try {
     if (isDemoMode()) {
@@ -28,7 +28,8 @@ export async function GET(
       });
     }
 
-    const code = (params.short_code || "").trim().toUpperCase();
+    const { short_code } = await params;
+    const code = (short_code || "").trim().toUpperCase();
     if (!/^[A-Z0-9]{4,12}$/.test(code)) {
       return new NextResponse("Invalid link", { status: 400 });
     }

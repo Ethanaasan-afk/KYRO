@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   // Only ever send people to a page on this site (no open redirect)
   const next = safeRedirectPath(searchParams.get("next"));
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);

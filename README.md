@@ -1,10 +1,10 @@
-# NovaFlow — VAT billing that just flows
+# KYRO — Smart billing for every business
 
 VAT-compliant invoicing, inventory, and customer credit for businesses in the UAE.
 
 ## Stack
 
-- Next.js 14 (App Router) + TypeScript + Tailwind
+- Next.js 15 (App Router) + React 19 + TypeScript + Tailwind
 - Supabase (Postgres + Auth)
 - TanStack Query, react-hook-form + zod
 - @react-pdf/renderer, Recharts, lucide-react
@@ -23,7 +23,7 @@ Fill in Supabase keys in `.env.local`.
 ### 2. Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Run the SQL files in `supabase/migrations/` in order in the SQL Editor (001 → 038). `038_every_business_email.sql` must run after `037_vat_gcc.sql`.
+2. Run the SQL files in `supabase/migrations/` in order in the SQL Editor (001 → 039). Run `037_vat_gcc.sql`, then `038_every_business_email.sql`, then `039_security_hardening.sql`.
 3. **Authentication → Providers → Email**: keep email/password enabled.
 4. Sign up through the app; each signup creates its own organization.
 5. In **Settings**, enter your TRN, emirate, address, and IBAN — these print on every tax invoice.
@@ -40,6 +40,7 @@ Open [http://localhost:3001](http://localhost:3001) and sign in.
 
 - **Vercel**: import the repo, set the same env vars, deploy.
 - Point production URL in Supabase Auth → URL configuration.
+- Go through the deployment checklist in [SECURITY.md](SECURITY.md).
 
 ## Roles
 
@@ -50,7 +51,7 @@ Open [http://localhost:3001](http://localhost:3001) and sign in.
 
 ## Invoice numbers
 
-Format: `NF/2026-27/0001` (prefix + financial year + sequence). Sequences never reuse numbers even if an invoice is voided.
+Format: `KY/2026-27/0001` (prefix + financial year + sequence). Existing businesses keep the prefix they already use. Sequences never reuse numbers even if an invoice is voided.
 
 ## VAT
 
@@ -101,3 +102,15 @@ Invoices (one, many at once, or payment reminders) are emailed with the PDF atta
 - `/reports` VAT 201 summary + sales / stock / VAT CSV export
 - `/settings` Company letterhead, TRN, VAT defaults (admin)
 - `/users` Create staff accounts (admin)
+
+## Brand
+
+Logo source artwork is in `assets/brand/`. Regenerate the logo files, favicons and app icons with:
+
+```bash
+node scripts/generate-brand-icons.mjs
+```
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how KYRO is protected and what to configure before going live.

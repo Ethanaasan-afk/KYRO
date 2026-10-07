@@ -1,0 +1,63 @@
+# KYRO security
+
+How KYRO protects business data, and what to configure before going live.
+
+## How it is protected
+
+| Area | What KYRO does |
+|------|----------------|
+| Secrets | Server keys (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `METALS_API_KEY`) are read only in server code and never sent to the browser. `.env*.local` is git-ignored. The full git history was scanned: no keys have ever been committed. |
+| Authentication | Supabase Auth. Passwords are hashed by Supabase (bcrypt) and never stored or logged by KYRO. Sign-up enforces strong passwords (8+ characters with upper and lower case, a number and a symbol). |
+| Tenant isolation | Row Level Security on every table: a business can only read and write its own rows (`current_org_id()`). |
+| Access control | Admin-only pages (`/settings`, `/users`, `/warehouses`) are checked on the server in middleware as well as in the UI. In the database, staff cannot change roles, promote themselves, move users between businesses, or edit business settings. |
+| Billing | Plan, trial and subscription fields can only be changed by the server (Razorpay webhook with a verified HMAC signature), never from the browser. |
+| API endpoints | Every private endpoint checks the session and the user's business. Errors return a generic message; details are only logged on the server. |
+| Rate limiting | Shared, database-backed limits (migration 039) on sign-up, staff invites, invoice emails, WhatsApp shares, short links and checkout, plus per-IP flood protection in middleware. |
+| CSRF / CORS | State-changing API calls from other websites are rejected (Origin / Sec-Fetch-Site check). No CORS headers are sent, so other sites cannot read API responses. |
+| XSS | React escapes all output; email HTML is escaped; a Content Security Policy only allows scripts from KYRO and Razorpay. |
+| Security headers | CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, no `X-Powered-By`. API responses are `no-store`. |
+| Input handling | All forms are validated with zod. Uploaded PDFs must be real PDFs (and at most 6 MB). Exports guard against spreadsheet formula injection. Redirects after login only go to pages on this site. |
+| Files | Invoice PDFs are in a private bucket, opened through short-lived signed links. Signature images can no longer be listed by outsiders. Browser source maps are not published. |
+| Debug | Production builds strip debug logging, and the setup page is hidden once Supabase is configured. |
+| Dependencies | Next.js 15.5 and React 19. `npm audit --omit=dev` reports 0 vulnerabilities. |
+
+## Go-live checklist
+
+### Supabase (SQL Editor)
+
+1. Back up the database (Database → Backups).
+2. Run `037_vat_gcc.sql`, then `038_every_business_email.sql`, then `039_security_hardening.sql`. Each is safe to re-run.
+
+### Supabase (Dashboard)
+
+- **Authentication → Providers → Email**: set the minimum password length to 8.
+- **Authentication → Attack Protection**: turn on *leaked password protection* (needs a paid plan) and CAPTCHA if you see bot sign-ups.
+- **Authentication → Rate Limits**: keep the defaults or lower them. They protect the login form from password guessing.
+- **Authentication → URL Configuration**: set the Site URL to your live domain and remove any `localhost` redirect URLs you no longer need.
+- **Advisors → Security Advisor**: run it after the migrations and fix anything it reports.
+
+### Vercel (Project → Settings → Environment Variables)
+
+- `NEXT_PUBLIC_APP_URL` = your live URL, e.g. `https://app.yourdomain.com`
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (never prefix it with `NEXT_PUBLIC_`)
+- `RAZORPAY_KEY_ID`, `NEXT_PUBLIC_RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, plan ids
+- `RESEND_API_KEY`, `EMAIL_FROM` (optional, for one-click email)
+- `DEMO_MODE` and `NEXT_PUBLIC_DEMO_MODE` must be **unset or `false`**: demo mode turns off sign-in.
+- Mark the secret values as **Sensitive**.
+
+### GitHub
+
+- The repository is public. Make it private (Settings → General → Danger Zone) unless you mean to publish the source.
+- Turn on **Secret scanning** and **Dependabot alerts** (Settings → Code security).
+
+## Known limits
+
+- Plan limits (number of invoices or products per month) are enforced by the app, not the database. A technical user could go past their plan's quota through the API. They cannot change their plan or trial.
+- Sign-up creates confirmed accounts straight away (no email verification step). Turn on "Confirm email" in Supabase and switch the sign-up route to `auth.signUp` if you want verified emails.
+- The CSP allows inline scripts, because Next.js needs them without per-request nonces. External scripts are still blocked.
+- `npm audit` lists a few advisories in development-only build tools (Tailwind 3 / ESLint dependencies). They are not shipped to the server or browsers.
+
+## Reporting a problem
+
+Email the support address on the website. Please do not open a public issue for security problems.
