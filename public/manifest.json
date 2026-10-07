@@ -1,6 +1,6 @@
 {
-  "name": "NovaFlow",
-  "short_name": "NovaFlow",
+  "name": "KYRO",
+  "short_name": "KYRO",
   "description": "VAT tax invoices, inventory, and customers for the UAE.",
   "start_url": "/login",
   "display": "standalone",

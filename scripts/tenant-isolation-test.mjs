@@ -86,7 +86,7 @@ async function main() {
   const failures = [];
   const passes = [];
 
-  console.log("NovaFlow tenant isolation test");
+  console.log("KYRO tenant isolation test");
   console.log(`App ${APP}`);
   console.log(`A ${emailA}`);
   console.log(`B ${emailB}`);

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRazorpay } from "@/lib/billing/razorpay";
 import { NextResponse } from "next/server";
+import { serverError } from "@/lib/security/request";
 
 export async function POST() {
   try {
@@ -53,7 +54,6 @@ export async function POST() {
 
     return NextResponse.json({ ok: true, cancel_at_period_end: true });
   } catch (e) {
-    console.error("[billing/cancel]", e);
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return serverError("billing/cancel", e, "Could not cancel the subscription. Please try again or contact support.");
   }
 }

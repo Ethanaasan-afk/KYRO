@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { isDemoMode } from "@/lib/demo/mode";
-import { APP_NAME, BRAND_LOGO_FULL } from "@/lib/brand";
+import { APP_NAME, BRAND_LOGO_FULL, BRAND_LOGO_FULL_WHITE } from "@/lib/brand";
 import {
   BUSINESS_TYPE_OPTIONS,
   DEFAULT_BUSINESS_TYPE,
@@ -148,7 +148,15 @@ export default function SignupPage() {
               alt={APP_NAME}
               fill
               priority
-              className="object-contain object-center"
+              className="object-contain object-center dark:hidden"
+              sizes="200px"
+            />
+            <Image
+              src={BRAND_LOGO_FULL_WHITE}
+              alt=""
+              fill
+              priority
+              className="hidden object-contain object-center dark:block"
               sizes="200px"
             />
           </div>

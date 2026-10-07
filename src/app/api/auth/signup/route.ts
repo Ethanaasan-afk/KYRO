@@ -4,6 +4,8 @@ import { DEFAULT_BUSINESS_TYPE, normalizeBusinessType } from "@/lib/business-typ
 import { signupSchema } from "@/lib/validations";
 import { NextResponse } from "next/server";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
+import { clientIp, rateLimitAll, tooManyRequests } from "@/lib/security/rate-limit";
+import { serverError } from "@/lib/security/request";
 
 function uniqueSlug(base: string): string {
   const suffix = Math.random().toString(36).slice(2, 7);
@@ -12,7 +14,18 @@ function uniqueSlug(base: string): string {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const admin = createAdminClient();
+    // Stop scripted mass sign-ups from one address
+    const ip = clientIp(request);
+    const limited = await rateLimitAll(admin, [
+      { key: `signup:ip:${ip}:h`, limit: 5, windowSeconds: 3600 },
+      { key: `signup:ip:${ip}:d`, limit: 20, windowSeconds: 86400 },
+    ]);
+    if (!limited.ok) {
+      return tooManyRequests(limited.retryAfter, "Too many sign-up attempts from this network. Please try again later.");
+    }
+
+    const body = await request.json().catch(() => null);
     const parsed = signupSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -23,7 +36,6 @@ export async function POST(request: Request) {
 
     const { business_name, owner_name, email, password, business_type } = parsed.data;
     const resolvedType = normalizeBusinessType(business_type ?? DEFAULT_BUSINESS_TYPE);
-    const admin = createAdminClient();
 
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email: email.trim().toLowerCase(),
@@ -33,11 +45,18 @@ export async function POST(request: Request) {
     });
 
     if (createErr || !created.user) {
-      const msg = createErr?.message ?? "Failed to create account";
-      const friendly = /already|registered|exists/i.test(msg)
-        ? "An account with this email already exists. Sign in instead, or use a different email."
-        : msg;
-      return NextResponse.json({ error: friendly }, { status: 400 });
+      const msg = createErr?.message ?? "";
+      if (/already|registered|exists/i.test(msg)) {
+        return NextResponse.json(
+          { error: "An account with this email already exists. Sign in instead, or use a different email." },
+          { status: 400 }
+        );
+      }
+      if (/password/i.test(msg)) {
+        return NextResponse.json({ error: "Please choose a stronger password." }, { status: 400 });
+      }
+      console.error("[signup] createUser", createErr);
+      return NextResponse.json({ error: "Could not create your account. Please try again." }, { status: 400 });
     }
 
     const userId = created.user.id;
@@ -84,18 +103,14 @@ export async function POST(request: Request) {
       }
 
       await admin.auth.admin.deleteUser(userId);
-      return NextResponse.json(
-        { error: orgErr?.message ?? "Failed to create organization" },
-        { status: 400 }
-      );
+      console.error("[signup] organization", orgErr);
+      return NextResponse.json({ error: "Could not set up your business. Please try again." }, { status: 400 });
     }
 
     if (!orgId) {
       await admin.auth.admin.deleteUser(userId);
-      return NextResponse.json(
-        { error: lastOrgError ?? "Could not allocate a unique business slug" },
-        { status: 400 }
-      );
+      console.error("[signup] slug", lastOrgError);
+      return NextResponse.json({ error: "Could not set up your business. Please try again." }, { status: 400 });
     }
 
     // Best-effort: set business_type when the column exists (migration 025).
@@ -129,7 +144,8 @@ export async function POST(request: Request) {
     if (profileErr) {
       await admin.from("organizations").delete().eq("id", orgId);
       await admin.auth.admin.deleteUser(userId);
-      return NextResponse.json({ error: profileErr.message }, { status: 400 });
+      console.error("[signup] profile", profileErr);
+      return NextResponse.json({ error: "Could not set up your account. Please try again." }, { status: 400 });
     }
 
     return NextResponse.json({
@@ -139,6 +155,6 @@ export async function POST(request: Request) {
       business_type_persisted: typeSaved,
     });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return serverError("signup", e);
   }
 }

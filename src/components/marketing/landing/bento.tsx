@@ -65,7 +65,7 @@ function WhatsAppDemo() {
           <FileText className="h-5 w-5" />
         </span>
         <span>
-          <span className="block text-[15px] font-semibold text-white">NF-2026-27-0014.pdf</span>
+          <span className="block text-[15px] font-semibold text-white">KY-2026-27-0014.pdf</span>
           <span className="block font-mono text-xs text-white/55">Amount due · AED 4,095.00</span>
         </span>
       </motion.div>
@@ -236,7 +236,7 @@ function EmailDemo() {
             <CheckCheck className="h-3.5 w-3.5" /> Delivered
           </motion.span>
         </div>
-        <p className="mt-3 text-[15px] font-semibold text-white">Tax invoice NF-2026-27-0118 from Sparkle Supplies</p>
+        <p className="mt-3 text-[15px] font-semibold text-white">Tax invoice KY-2026-27-0118 from Sparkle Supplies</p>
         <p className="mt-1 text-sm text-white/55">Hi Gulf Hospitality, please find attached your invoice for AED 6,489.00…</p>
         <motion.span
           initial={reduce ? false : { opacity: 0, x: -10 }}
@@ -244,7 +244,7 @@ function EmailDemo() {
           transition={{ delay: 0.7, duration: 0.5, ease: EASE }}
           className="mt-3 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white/80"
         >
-          <Paperclip className="h-3.5 w-3.5 text-[#c98bff]" /> NF-2026-27-0118.pdf
+          <Paperclip className="h-3.5 w-3.5 text-[#c98bff]" /> KY-2026-27-0118.pdf
         </motion.span>
       </motion.div>
       <div className="flex flex-wrap gap-2">

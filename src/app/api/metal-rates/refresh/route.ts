@@ -5,6 +5,7 @@ import {
   refreshLiveMetalRates,
 } from "@/lib/live-metal-rates-server";
 import { NextResponse } from "next/server";
+import { memoryLimit, tooManyRequests } from "@/lib/security/rate-limit";
 
 export async function POST() {
   try {
@@ -15,6 +16,9 @@ export async function POST() {
     if (!user) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
+    // Each refresh spends paid Metals.Dev quota
+    const limited = memoryLimit(`metals:user:${user.id}`, 6, 10 * 60 * 1000);
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
     const result = await refreshLiveMetalRates();
     try {
@@ -25,9 +29,7 @@ export async function POST() {
     }
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: (e as Error).message || "Live rates unavailable right now" },
-      { status: 502 }
-    );
+    console.error("[metal-rates/refresh]", e);
+    return NextResponse.json({ ok: false, error: "Live rates unavailable right now" }, { status: 502 });
   }
 }

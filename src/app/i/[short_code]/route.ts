@@ -8,6 +8,7 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isDemoMode } from "@/lib/demo/mode";
 import { NextResponse } from "next/server";
+import { clientIp, rateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
  * No login required - customers open this from WhatsApp.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { short_code: string } }
 ) {
   try {
@@ -33,6 +34,15 @@ export async function GET(
     }
 
     const admin = createAdminClient();
+    // Short codes are random, but stop anyone from guessing through them
+    const limited = await rateLimit(admin, `shortlink:ip:${clientIp(request)}`, 60, 600);
+    if (!limited.ok) {
+      return new NextResponse("Too many requests. Please try again in a few minutes.", {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfter) },
+      });
+    }
+
     const { data: invoice, error } = await admin
       .from("invoices")
       .select("id, invoice_number, organization_id, short_code, status")

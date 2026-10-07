@@ -74,7 +74,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ),
       ]);
 
-      console.log("[auth] session user.id:", authUser?.id ?? null, "email:", authUser?.email ?? null);
       if (authError) console.error("[auth] getUser error:", authError);
 
       if (!authUser) {
@@ -110,7 +109,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error = fallback.error;
       }
 
-      console.log("[auth] public.users query result:", data);
       if (error) console.error("[auth] public.users query error:", error);
 
       const profile = (data as AppUser | null) ?? null;
@@ -136,8 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      console.log("[auth] onAuthStateChange:", event);
+    } = supabase.auth.onAuthStateChange(() => {
       void refresh();
     });
     return () => subscription.unsubscribe();

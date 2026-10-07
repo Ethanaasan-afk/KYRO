@@ -86,7 +86,7 @@ export function Hero() {
         <h1 className="mx-auto mt-7 max-w-5xl font-display text-[46px] font-extrabold leading-[1.02] tracking-[-0.045em] text-white sm:text-7xl lg:text-[96px]">
           <WordsReveal text="VAT billing" delay={0.1} />
           <br />
-          <WordsReveal text="that just flows." wordClassName="landing-sheen" delay={0.35} />
+          <WordsReveal text="done in seconds." wordClassName="landing-sheen" delay={0.35} />
         </h1>
 
         <motion.p

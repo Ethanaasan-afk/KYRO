@@ -66,8 +66,12 @@ export function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
   const escape = (v: unknown) => {
-    const s = v == null ? "" : String(v);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    let s = v == null ? "" : String(v);
+    // A customer or product name like "=HYPERLINK(...)" must not run as a formula in Excel
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) {
+      s = `'${s}`;
+    }
+    if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
       return `"${s.replace(/"/g, '""')}"`;
     }
     return s;

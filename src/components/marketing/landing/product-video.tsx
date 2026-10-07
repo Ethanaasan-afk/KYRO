@@ -6,13 +6,13 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * The NovaFlow tour film. Autoplays muted + looped only while it is on screen,
+ * The KYRO tour film. Autoplays muted + looped only while it is on screen,
  * pauses off screen to save battery/bandwidth, and never autoplays for
  * visitors who ask for reduced motion (they get the poster and a play button).
  */
 export function ProductVideo({
   className,
-  label = "novaflow / tour",
+  label = "kyro / tour",
 }: {
   className?: string;
   label?: string;
@@ -69,8 +69,8 @@ export function ProductVideo({
           loop
           playsInline
           preload="metadata"
-          poster="/marketing/novaflow-tour-poster.jpg"
-          aria-label="NovaFlow product tour: creating a VAT tax invoice, the live dashboard and the VAT 201 summary"
+          poster="/marketing/kyro-tour-poster.jpg"
+          aria-label="KYRO product tour: creating a VAT tax invoice, the live dashboard and the VAT 201 summary"
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onTimeUpdate={(e) => {
@@ -78,8 +78,8 @@ export function ProductVideo({
             if (v.duration) setProgress(v.currentTime / v.duration);
           }}
         >
-          <source src="/marketing/novaflow-tour.webm" type="video/webm" />
-          <source src="/marketing/novaflow-tour.mp4" type="video/mp4" />
+          <source src="/marketing/kyro-tour.webm" type="video/webm" />
+          <source src="/marketing/kyro-tour.mp4" type="video/mp4" />
         </video>
 
         <button

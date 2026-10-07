@@ -247,12 +247,6 @@ export function useInvoiceMutations() {
         console.warn("[invoices] short_code allocate skipped:", e);
       }
 
-      console.log(
-        "[invoices] create_invoice_atomic returned id:",
-        invoice.id,
-        "number:",
-        invoice.invoice_number
-      );
       return invoice;
     },
     onSuccess: (invoice) => {
@@ -380,12 +374,6 @@ export function useInvoiceMutations() {
       if (error) throw error;
 
       const invoice = normalizeRpcInvoice(data);
-      console.log(
-        "[invoices] update_invoice_atomic returned id:",
-        invoice.id,
-        "number:",
-        invoice.invoice_number
-      );
       return invoice;
     },
     onSuccess: (invoice, vars) => {

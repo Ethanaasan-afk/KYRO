@@ -57,7 +57,7 @@ async function main() {
     bank_account: "AE070331234567890123456",
     bank_swift: "EBILAEAD",
     bank_branch: "Bur Dubai",
-    invoice_prefix: "NF",
+    invoice_prefix: "KY",
     updated_at: new Date().toISOString(),
     signature_url: "local",
   };
@@ -129,8 +129,8 @@ async function main() {
     <InvoicePdfDocument
       invoice={invoice}
       company={company}
-      logoSrc={fileToDataUrl(path.join(root, "public/logo/novaflow-icon.png"))}
-      wordmarkSrc={fileToDataUrl(path.join(root, "public/logo/novaflow-full.png"))}
+      logoSrc={fileToDataUrl(path.join(root, "public/logo/kyro-icon.png"))}
+      wordmarkSrc={fileToDataUrl(path.join(root, "public/logo/kyro-full.png"))}
       signatureSrc={fs.existsSync(sigPath) ? fileToDataUrl(sigPath) : null}
       businessType="general"
     />

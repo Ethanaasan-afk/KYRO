@@ -1,13 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirectPath } from "@/lib/security/request";
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
+
+const OTP_TYPES: EmailOtpType[] = ["signup", "invite", "magiclink", "recovery", "email_change", "email"];
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
-  const type = (searchParams.get("type") ?? "email") as EmailOtpType;
-  const next = searchParams.get("next") ?? "/dashboard";
+  const rawType = searchParams.get("type") as EmailOtpType | null;
+  const type: EmailOtpType = rawType && OTP_TYPES.includes(rawType) ? rawType : "email";
+  // Only ever send people to a page on this site (no open redirect)
+  const next = safeRedirectPath(searchParams.get("next"));
 
   const supabase = createClient();
 

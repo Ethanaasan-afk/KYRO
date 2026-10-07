@@ -4,7 +4,7 @@ import { AuthLegalFooter } from "@/components/auth/auth-legal-footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isDemoMode } from "@/lib/demo/mode";
-import { APP_NAME, APP_TAGLINE, BRAND_LOGO_FULL } from "@/lib/brand";
+import { APP_NAME, APP_TAGLINE, BRAND_LOGO_FULL, BRAND_LOGO_FULL_WHITE } from "@/lib/brand";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -162,11 +162,19 @@ export default function LoginPage() {
               alt={APP_NAME}
               fill
               priority
-              className="object-contain object-center"
+              className="object-contain object-center dark:hidden"
+              sizes="220px"
+            />
+            <Image
+              src={BRAND_LOGO_FULL_WHITE}
+              alt=""
+              fill
+              priority
+              className="hidden object-contain object-center dark:block"
               sizes="220px"
             />
           </div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-ink">{APP_NAME}</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-ink">Welcome back</h1>
           <p className="mt-1 text-xs text-slate">{APP_TAGLINE}</p>
         </div>
 

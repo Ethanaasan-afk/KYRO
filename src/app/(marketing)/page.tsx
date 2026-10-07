@@ -20,13 +20,13 @@ export const metadata: Metadata = {
     title: APP_TITLE,
     description: APP_DESCRIPTION,
     type: "website",
-    images: [{ url: "/marketing/novaflow-tour-poster.jpg", width: 1600, height: 900 }],
+    images: [{ url: "/marketing/kyro-tour-poster.jpg", width: 1600, height: 900 }],
   },
   twitter: {
     card: "summary_large_image",
     title: APP_TITLE,
     description: APP_DESCRIPTION,
-    images: ["/marketing/novaflow-tour-poster.jpg"],
+    images: ["/marketing/kyro-tour-poster.jpg"],
   },
 };
 

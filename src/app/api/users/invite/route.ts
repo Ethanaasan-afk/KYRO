@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inviteUserSchema } from "@/lib/validations";
 import { NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/security/rate-limit";
+import { serverError } from "@/lib/security/request";
 
 export async function POST(request: Request) {
   try {
@@ -31,7 +33,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const body = await request.json();
+    const admin = createAdminClient();
+    const limited = await rateLimit(admin, `invite:org:${profile.organization_id}`, 20, 3600);
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+    const body = await request.json().catch(() => null);
     const parsed = inviteUserSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -41,20 +47,21 @@ export async function POST(request: Request) {
     }
 
     const { email, password, full_name, role } = parsed.data;
-    const admin = createAdminClient();
 
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email,
+      email: email.trim().toLowerCase(),
       password,
       email_confirm: true,
       user_metadata: { full_name },
     });
 
     if (createErr || !created.user) {
-      return NextResponse.json(
-        { error: createErr?.message ?? "Failed to create auth user" },
-        { status: 400 }
-      );
+      const msg = createErr?.message ?? "";
+      if (/already|registered|exists/i.test(msg)) {
+        return NextResponse.json({ error: "That email already has an account." }, { status: 400 });
+      }
+      console.error("[invite] createUser", createErr);
+      return NextResponse.json({ error: "Could not create this user. Please try again." }, { status: 400 });
     }
 
     const { error: profileErr } = await admin.from("users").upsert(
@@ -69,11 +76,12 @@ export async function POST(request: Request) {
 
     if (profileErr) {
       await admin.auth.admin.deleteUser(created.user.id);
-      return NextResponse.json({ error: profileErr.message }, { status: 400 });
+      console.error("[invite] profile", profileErr);
+      return NextResponse.json({ error: "Could not create this user. Please try again." }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true, id: created.user.id });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return serverError("invite", e);
   }
 }

@@ -4,6 +4,8 @@ import { getRazorpay } from "@/lib/billing/razorpay";
 import { getRazorpayPlanId, type PaidPlanId, PAID_PLANS, PLAN_CURRENCY } from "@/lib/billing/plans";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { rateLimit, tooManyRequests } from "@/lib/security/rate-limit";
+import { serverError } from "@/lib/security/request";
 
 const bodySchema = z.object({
   plan: z.enum(["starter", "pro", "business"]),
@@ -32,20 +34,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No organization linked" }, { status: 400 });
     }
 
-    const parsed = bodySchema.safeParse(await request.json());
+    const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
     const plan = parsed.data.plan as PaidPlanId;
 
     const admin = createAdminClient();
+    const limited = await rateLimit(admin, `billing:org:${profile.organization_id}`, 10, 3600);
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
     const { data: org, error: orgErr } = await admin
       .from("organizations")
       .select("*")
       .eq("id", profile.organization_id)
       .single();
     if (orgErr || !org) {
-      return NextResponse.json({ error: orgErr?.message ?? "Organization not found" }, { status: 400 });
+      return NextResponse.json({ error: "Organization not found" }, { status: 400 });
     }
 
     const razorpay = getRazorpay();
@@ -92,7 +97,8 @@ export async function POST(request: Request) {
 
     const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
     if (!keyId) {
-      return NextResponse.json({ error: "Missing NEXT_PUBLIC_RAZORPAY_KEY_ID" }, { status: 500 });
+      console.error("[billing/create-subscription] NEXT_PUBLIC_RAZORPAY_KEY_ID is not set");
+      return NextResponse.json({ error: "Payments are not set up yet. Please contact support." }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -109,7 +115,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (e) {
-    console.error("[billing/create-subscription]", e);
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return serverError("billing/create-subscription", e, "Could not start checkout. Please try again or contact support.");
   }
 }

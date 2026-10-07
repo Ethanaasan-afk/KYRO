@@ -1,24 +1,27 @@
 /** Display-only brand constants (not DB schema). */
-export const APP_NAME = "NovaFlow";
-export const APP_TAGLINE = "VAT billing that just flows";
-export const APP_TITLE = "NovaFlow - VAT billing that just flows";
+export const APP_NAME = "KYRO";
+export const APP_TAGLINE = "Smart billing for every business";
+export const APP_TITLE = "KYRO - Smart billing for every business";
 export const APP_DESCRIPTION =
   "VAT-compliant invoicing, inventory, and customers for UAE businesses.";
 
 /** Default invoice number prefix for new orgs (editable in Settings). */
-export const DEFAULT_INVOICE_PREFIX = "NF";
+export const DEFAULT_INVOICE_PREFIX = "KY";
 
-export const BRAND_LOGO_ICON = "/logo/novaflow-icon.png";
-export const BRAND_LOGO_FULL = "/logo/novaflow-full.png";
-/** Transparent N mark for dark backgrounds. */
-export const BRAND_LOGO_MARK = "/logo/novaflow-mark.png";
+/** Transparent KYRO mark - works on light and dark backgrounds. */
+export const BRAND_LOGO_ICON = "/logo/kyro-icon.png";
+/** Mark + navy wordmark, for light backgrounds. */
+export const BRAND_LOGO_FULL = "/logo/kyro-full.png";
+/** Mark + white wordmark, for dark backgrounds. */
+export const BRAND_LOGO_FULL_WHITE = "/logo/kyro-full-white.png";
+export const BRAND_LOGO_MARK = BRAND_LOGO_ICON;
 
-/** Legal entity that operates NovaFlow (Privacy Policy / Terms). */
+/** Legal entity that operates KYRO (Privacy Policy / Terms). */
 export const LEGAL_ENTITY_NAME = "Focused Folks Solutions LLP";
 export const LEGAL_ENTITY_ADDRESS =
   "236, Seventh Heaven, Ahmedabad, Gujarat, 380055";
-/** TODO: replace with the real NovaFlow support mailbox once the domain is chosen. */
-export const LEGAL_SUPPORT_EMAIL = "support@novaflow.example";
+/** TODO: replace with the real KYRO support mailbox once the domain is chosen. */
+export const LEGAL_SUPPORT_EMAIL = "support@kyro.example";
 /** Governing law / courts named in the Terms - DRAFT, confirm with counsel. */
 export const LEGAL_GOVERNING_LAW = "the United Arab Emirates";
 export const LEGAL_JURISDICTION = "Dubai, United Arab Emirates";

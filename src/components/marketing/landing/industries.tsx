@@ -264,7 +264,7 @@ export function Industries() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/45">Tax invoice · NF-2026-27-0042</p>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/45">Tax invoice · KY-2026-27-0042</p>
                         <p className="mt-1.5 flex items-center gap-2 font-display text-xl font-extrabold text-white">
                           <span>{meta.emoji}</span> {sample.shop}
                         </p>

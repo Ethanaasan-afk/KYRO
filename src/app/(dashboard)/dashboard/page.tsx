@@ -51,12 +51,14 @@ import { CircleAlert, FilePlus2, PackagePlus, RotateCw, UserPlus, Wallet } from 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-const GOAL_KEY = "novaflow-goal:";
+const GOAL_KEY = "kyro-goal:";
+/** Goals saved before the KYRO rename. */
+const LEGACY_GOAL_KEY = "novaflow-goal:";
 
 function readLocalGoal(orgId?: string): number | null {
   if (!orgId) return null;
   try {
-    const v = Number(localStorage.getItem(GOAL_KEY + orgId));
+    const v = Number(localStorage.getItem(GOAL_KEY + orgId) ?? localStorage.getItem(LEGACY_GOAL_KEY + orgId));
     return v > 0 ? v : null;
   } catch {
     return null;

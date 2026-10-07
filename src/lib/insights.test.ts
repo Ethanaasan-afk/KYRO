@@ -26,7 +26,7 @@ const TODAY = new Date(2026, 9, 7, 12); // 7 Oct 2026, local time
 function inv(p: Partial<Invoice> & { invoice_date: string; grand_total: number }): Invoice {
   return {
     id: p.id ?? Math.random().toString(36).slice(2),
-    invoice_number: p.invoice_number ?? "NF-1",
+    invoice_number: p.invoice_number ?? "KY-1",
     customer_id: p.customer_id ?? "c1",
     subtotal: p.grand_total / 1.05,
     total_vat: p.total_vat ?? p.grand_total - p.grand_total / 1.05,

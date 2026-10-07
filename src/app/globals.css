@@ -17,7 +17,7 @@
   --surface-hover: #f1f5f9;
   --border: rgba(15, 23, 42, 0.08);
 
-  /* Primary - NovaFlow brand purple */
+  /* Primary - KYRO brand purple */
   --primary: #7c1cf0;
   --primary-hover: #6a0fe0;
   --primary-soft: rgba(124, 28, 240, 0.12);
@@ -632,7 +632,7 @@ a,
 
 
 
-/* ---------- NovaFlow landing: smooth scrolling + motion helpers ---------- */
+/* ---------- KYRO landing: smooth scrolling + motion helpers ---------- */
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;

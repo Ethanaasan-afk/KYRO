@@ -10,6 +10,10 @@ import {
 import { invoiceShareMessage, whatsappShareUrl } from "@/lib/whatsapp";
 import { NextResponse } from "next/server";
 import { APP_NAME } from "@/lib/brand";
+import { rateLimit, tooManyRequests } from "@/lib/security/rate-limit";
+import { looksLikePdf, serverError } from "@/lib/security/request";
+
+const MAX_PDF_BYTES = 6 * 1024 * 1024;
 
 export async function POST(
   request: Request,
@@ -48,8 +52,13 @@ export async function POST(
       return NextResponse.json({ error: "Missing PDF file" }, { status: 400 });
     }
     const pdfBlob = file as Blob;
+    if (pdfBlob.size > MAX_PDF_BYTES) {
+      return NextResponse.json({ error: "The PDF is too large to share." }, { status: 413 });
+    }
 
     const admin = createAdminClient();
+    const limited = await rateLimit(admin, `share:org:${profile.organization_id}`, 240, 3600);
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
     const { data: invoice, error: invErr } = await admin
       .from("invoices")
       .select(
@@ -60,7 +69,7 @@ export async function POST(
       .single();
 
     if (invErr || !invoice) {
-      return NextResponse.json({ error: invErr?.message ?? "Invoice not found" }, { status: 404 });
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
 
     const { data: org } = await admin
@@ -83,6 +92,9 @@ export async function POST(
       invoice.invoice_number
     );
     const bytes = new Uint8Array(await pdfBlob.arrayBuffer());
+    if (!looksLikePdf(bytes)) {
+      return NextResponse.json({ error: "The attachment is not a valid PDF." }, { status: 400 });
+    }
 
     const { error: upErr } = await admin.storage.from(INVOICE_PDF_BUCKET).upload(objectPath, bytes, {
       contentType: "application/pdf",
@@ -96,7 +108,7 @@ export async function POST(
           error:
             upErr.message.includes("Bucket not found") || upErr.message.includes("not found")
               ? "Storage bucket `invoice-pdfs` missing - run migration 021_invoice_pdfs_storage.sql"
-              : upErr.message,
+              : "Could not upload the PDF. Please try again.",
         },
         { status: 500 }
       );
@@ -126,10 +138,6 @@ export async function POST(
       hasPhone,
     });
   } catch (e) {
-    console.error("[share-whatsapp]", e);
-    return NextResponse.json(
-      { error: (e as Error).message || "Share failed" },
-      { status: 500 }
-    );
+    return serverError("share-whatsapp", e, "Share failed. Please try again.");
   }
 }

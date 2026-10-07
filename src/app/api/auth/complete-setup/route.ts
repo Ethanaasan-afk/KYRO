@@ -5,6 +5,8 @@ import { DEFAULT_BUSINESS_TYPE, normalizeBusinessType } from "@/lib/business-typ
 import { completeSetupSchema } from "@/lib/validations";
 import { NextResponse } from "next/server";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
+import { rateLimit, tooManyRequests } from "@/lib/security/rate-limit";
+import { serverError } from "@/lib/security/request";
 
 function uniqueSlug(base: string): string {
   const suffix = Math.random().toString(36).slice(2, 7);
@@ -22,7 +24,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Sign in first, then finish setup." }, { status: 401 });
     }
 
-    const body = await request.json();
+    const admin = createAdminClient();
+    const limited = await rateLimit(admin, `setup:user:${authUser.id}`, 10, 3600);
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+    const body = await request.json().catch(() => null);
     const parsed = completeSetupSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -33,7 +39,6 @@ export async function POST(request: Request) {
 
     const { business_name, owner_name, business_type } = parsed.data;
     const resolvedType = normalizeBusinessType(business_type ?? DEFAULT_BUSINESS_TYPE);
-    const admin = createAdminClient();
 
     const { data: existing } = await admin
       .from("users")
@@ -89,17 +94,13 @@ export async function POST(request: Request) {
         continue;
       }
 
-      return NextResponse.json(
-        { error: orgErr?.message ?? "Failed to create organization" },
-        { status: 400 }
-      );
+      console.error("[complete-setup] organization", orgErr);
+      return NextResponse.json({ error: "Could not set up your business. Please try again." }, { status: 400 });
     }
 
     if (!orgId) {
-      return NextResponse.json(
-        { error: lastOrgError ?? "Could not allocate a unique business slug" },
-        { status: 400 }
-      );
+      console.error("[complete-setup] slug", lastOrgError);
+      return NextResponse.json({ error: "Could not set up your business. Please try again." }, { status: 400 });
     }
 
     await admin
@@ -128,7 +129,8 @@ export async function POST(request: Request) {
 
       if (updateErr) {
         await admin.from("organizations").delete().eq("id", orgId);
-        return NextResponse.json({ error: updateErr.message }, { status: 400 });
+        console.error("[complete-setup] profile", updateErr);
+        return NextResponse.json({ error: "Could not set up your account. Please try again." }, { status: 400 });
       }
     } else {
       const { error: profileErr } = await admin.from("users").insert({
@@ -140,7 +142,8 @@ export async function POST(request: Request) {
 
       if (profileErr) {
         await admin.from("organizations").delete().eq("id", orgId);
-        return NextResponse.json({ error: profileErr.message }, { status: 400 });
+        console.error("[complete-setup] profile", profileErr);
+        return NextResponse.json({ error: "Could not set up your account. Please try again." }, { status: 400 });
       }
     }
 
@@ -150,6 +153,6 @@ export async function POST(request: Request) {
       business_type: resolvedType,
     });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return serverError("complete-setup", e);
   }
 }

@@ -20,6 +20,8 @@ import {
 import { APP_NAME } from "@/lib/brand";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { NextResponse } from "next/server";
+import { rateLimitAll, tooManyRequests } from "@/lib/security/rate-limit";
+import { looksLikePdf, serverError } from "@/lib/security/request";
 
 const MAX_RECIPIENTS = 10;
 const MAX_PDF_BYTES = 6 * 1024 * 1024;
@@ -52,6 +54,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const orgId = profile?.organization_id as string | undefined;
     if (!orgId) return NextResponse.json({ error: "No organization linked" }, { status: 400 });
 
+    // Keeps a hijacked or abusive account from turning KYRO into a spam relay
+    const admin = createAdminClient();
+    const limited = await rateLimitAll(admin, [
+      { key: `email:user:${user.id}:m`, limit: 15, windowSeconds: 60 },
+      { key: `email:org:${orgId}:h`, limit: 120, windowSeconds: 3600 },
+      { key: `email:org:${orgId}:d`, limit: 500, windowSeconds: 86400 },
+    ]);
+    if (!limited.ok) {
+      return tooManyRequests(limited.retryAfter, "You have sent a lot of emails in a short time. Please wait a little and try again.");
+    }
+
     const form = await request.formData();
     const kind: EmailKind = form.get("kind") === "reminder" ? "reminder" : "invoice";
     const to = parseEmailList(String(form.get("to") ?? ""));
@@ -72,8 +85,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (pdf.byteLength > MAX_PDF_BYTES) {
       return NextResponse.json({ error: "The PDF is too large to email." }, { status: 413 });
     }
+    if (!looksLikePdf(pdf)) {
+      return NextResponse.json({ error: "The attachment is not a valid PDF." }, { status: 400 });
+    }
 
-    const admin = createAdminClient();
     const { data: invoice, error: invErr } = await admin
       .from("invoices")
       .select(
@@ -83,7 +98,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .eq("organization_id", orgId)
       .single();
     if (invErr || !invoice) {
-      return NextResponse.json({ error: invErr?.message ?? "Invoice not found" }, { status: 404 });
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
     if (invoice.status === "cancelled") {
       return NextResponse.json({ error: "Cancelled invoices can't be emailed." }, { status: 400 });
@@ -145,8 +160,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       String(form.get("message") ?? "").trim() ||
       (kind === "invoice" ? (prefs?.email_body_template as string | null) : null) ||
       defaults.body;
-    const subject = fillTemplate(subjectTemplate, vars).slice(0, 200);
-    const text = fillTemplate(bodyTemplate, vars);
+    const subject = fillTemplate(subjectTemplate, vars).replace(/[\r\n]+/g, " ").slice(0, 200);
+    const text = fillTemplate(bodyTemplate, vars).slice(0, 5000);
 
     const status = getEmailStatus();
     if (!status.configured) {
@@ -192,7 +207,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       });
       providerId = sent.id;
     } catch (e) {
-      sendError = (e as Error).message || "Send failed";
+      console.error("[invoice-email] provider", e);
+      sendError = "The email could not be sent. Please check the address and try again.";
     }
 
     // Log every attempt; the table arrives with migration 038 (ignore if missing).
@@ -233,7 +249,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     return NextResponse.json({ ok: true, id: providerId, pdfUrl });
   } catch (e) {
-    console.error("[invoice-email]", e);
-    return NextResponse.json({ error: (e as Error).message || "Email failed" }, { status: 500 });
+    return serverError("invoice-email", e, "Email failed. Please try again.");
   }
 }

@@ -521,8 +521,8 @@ function seed(): Store {
 
   const organization: Organization = {
     id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-    name: "NovaFlow Demo Trading LLC",
-    slug: "novaflow-demo",
+    name: "KYRO Demo Trading LLC",
+    slug: "kyro-demo",
     tax_id: "100123456700003",
     country: "AE",
     currency: "AED",
@@ -535,11 +535,11 @@ function seed(): Store {
     subscription_status: "active",
     trial_ends_at: "2027-07-31T00:00:00.000Z",
     created_at: "2026-01-01T10:00:00.000Z",
-    brand_name: "NovaFlow Demo",
+    brand_name: "KYRO Demo",
     city: "Dubai",
     pincode: "123456",
     phone: "+971 4 123 4567",
-    email: "billing@novaflow.local",
+    email: "billing@kyro.local",
     bank_name: "Emirates NBD",
     bank_account: "AE070331234567890123456",
     bank_ifsc: "EBILAEAD",
@@ -720,8 +720,8 @@ function demoCategories(): ProductCategoryRow[] {
   return rows;
 }
 
-const globalKey = "__novaflow_demo_store_v11__";
-const seededKey = "__novaflow_demo_seeded_v11__";
+const globalKey = "__kyro_demo_store_v12__";
+const seededKey = "__kyro_demo_seeded_v12__";
 
 function getStore(): Store {
   const g = globalThis as unknown as Record<string, Store | undefined>;
@@ -754,7 +754,7 @@ function getStore(): Store {
     s.organization = {
       id: s.company.id,
       name: s.company.company_name,
-      slug: "novaflow-demo",
+      slug: "kyro-demo",
       tax_id: s.company.tax_id || null,
       country: s.company.country,
       currency: s.company.currency,

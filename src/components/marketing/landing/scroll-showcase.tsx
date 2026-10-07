@@ -12,35 +12,35 @@ const STEPS = [
     title: "Tax invoices in seconds",
     body: "Pick a customer, add items. VAT is worked out on every line, your TRN prints automatically, and prices can include or exclude VAT.",
     img: "/marketing/showcase/invoice-step3.webp",
-    label: "novaflow / invoices / new",
+    label: "kyro / invoices / new",
   },
   {
     kicker: "Overview",
     title: "Your business, live",
     body: "Revenue, outstanding balances, stock alerts and customers on one calm dashboard, always up to date.",
     img: "/marketing/showcase/dashboard.webp",
-    label: "novaflow / dashboard",
+    label: "kyro / dashboard",
   },
   {
     kicker: "Compliance",
     title: "VAT 201, ready to file",
     body: "Output VAT by emirate, input VAT from purchases and the net payable, summarised in the FTA VAT 201 layout and exported to Excel.",
     img: "/marketing/showcase/vat201b.webp",
-    label: "novaflow / reports / vat 201",
+    label: "kyro / reports / vat 201",
   },
   {
     kicker: "Relationships",
     title: "Customers and credit, tracked",
     body: "A ledger for every customer with part payments, balances due and one-tap WhatsApp reminders.",
     img: "/marketing/showcase/customers.webp",
-    label: "novaflow / customers",
+    label: "kyro / customers",
   },
   {
     kicker: "Inventory",
     title: "Stock that stays honest",
     body: "Every invoice moves stock. Low-stock alerts, batches, warehouses and zero-, standard- and exempt-rated items.",
     img: "/marketing/showcase/products.webp",
-    label: "novaflow / products",
+    label: "kyro / products",
   },
 ];
 
@@ -55,7 +55,7 @@ function Frame({ step, priority = false }: { step: (typeof STEPS)[number]; prior
       </div>
       <Image
         src={step.img}
-        alt={`${step.title} - NovaFlow screenshot`}
+        alt={`${step.title} - KYRO screenshot`}
         width={1920}
         height={1080}
         priority={priority}
@@ -85,7 +85,7 @@ export function ScrollShowcase() {
           <h2 className="mx-auto mt-3 max-w-3xl font-display text-4xl font-extrabold tracking-[-0.035em] text-white sm:text-6xl">
             Everything you bill, track and file.
           </h2>
-          <p className="mx-auto mt-5 max-w-xl text-lg text-white/60">Scroll to walk through a day in NovaFlow.</p>
+          <p className="mx-auto mt-5 max-w-xl text-lg text-white/60">Scroll to walk through a day in KYRO.</p>
         </Reveal>
       </div>
 

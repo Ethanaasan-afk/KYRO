@@ -32,9 +32,9 @@ export function FinalCta() {
           <Image src={BRAND_LOGO_MARK} alt="" width={84} height={84} className="mx-auto h-[84px] w-[84px] object-contain" />
         </Reveal>
         <h2 className="mt-8 font-display text-5xl font-extrabold leading-[1.03] tracking-[-0.04em] text-white sm:text-7xl">
-          <WordsReveal text="Ready to let your" inView />
+          <WordsReveal text="Ready to make billing" inView />
           <br />
-          <WordsReveal text="billing flow?" inView delay={0.25} wordClassName="landing-sheen" />
+          <WordsReveal text="effortless?" inView delay={0.25} wordClassName="landing-sheen" />
         </h2>
         <Reveal delay={0.1}>
           <p className="mx-auto mt-6 max-w-xl text-lg text-white/65">

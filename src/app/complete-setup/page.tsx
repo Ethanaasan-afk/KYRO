@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { APP_NAME, BRAND_LOGO_FULL } from "@/lib/brand";
+import { APP_NAME, BRAND_LOGO_FULL, BRAND_LOGO_FULL_WHITE } from "@/lib/brand";
 import {
   BUSINESS_TYPE_OPTIONS,
   DEFAULT_BUSINESS_TYPE,
@@ -109,7 +109,15 @@ export default function CompleteSetupPage() {
               alt={APP_NAME}
               fill
               priority
-              className="object-contain object-center"
+              className="object-contain object-center dark:hidden"
+              sizes="220px"
+            />
+            <Image
+              src={BRAND_LOGO_FULL_WHITE}
+              alt=""
+              fill
+              priority
+              className="hidden object-contain object-center dark:block"
               sizes="220px"
             />
           </div>
