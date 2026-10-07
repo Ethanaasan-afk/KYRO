@@ -1,41 +1,47 @@
 /** Display-only brand constants (not DB schema). */
-export const APP_NAME = "AasanBill";
-export const APP_TAGLINE = "Bill banao, tension bhagao";
-export const APP_TITLE = "AasanBill - Bill banao, tension bhagao";
+export const APP_NAME = "NovaFlow";
+export const APP_TAGLINE = "VAT billing that just flows";
+export const APP_TITLE = "NovaFlow - VAT billing that just flows";
 export const APP_DESCRIPTION =
-  "Simple GST billing, inventory, and invoices for growing businesses.";
+  "VAT-compliant invoicing, inventory, and customers for UAE businesses.";
 
 /** Default invoice number prefix for new orgs (editable in Settings). */
-export const DEFAULT_INVOICE_PREFIX = "AB";
+export const DEFAULT_INVOICE_PREFIX = "NF";
 
-export const BRAND_LOGO_ICON = "/logo/aasanbill-icon.png";
-export const BRAND_LOGO_FULL = "/logo/aasanbill-full.png";
+export const BRAND_LOGO_ICON = "/logo/novaflow-icon.png";
+export const BRAND_LOGO_FULL = "/logo/novaflow-full.png";
+/** Transparent N mark for dark backgrounds. */
+export const BRAND_LOGO_MARK = "/logo/novaflow-mark.png";
 
-/** Legal entity that operates AasanBill (Privacy Policy / Terms). */
+/** Legal entity that operates NovaFlow (Privacy Policy / Terms). */
 export const LEGAL_ENTITY_NAME = "Focused Folks Solutions LLP";
 export const LEGAL_ENTITY_ADDRESS =
   "236, Seventh Heaven, Ahmedabad, Gujarat, 380055";
-export const LEGAL_SUPPORT_EMAIL = "support.aasanbill@gmail.com";
-export const LEGAL_PRIVACY_UPDATED = "4 August 2026";
-export const LEGAL_TERMS_UPDATED = "4 August 2026";
-export const LEGAL_REFUNDS_UPDATED = "4 August 2026";
+/** TODO: replace with the real NovaFlow support mailbox once the domain is chosen. */
+export const LEGAL_SUPPORT_EMAIL = "support@novaflow.example";
+/** Governing law / courts named in the Terms - DRAFT, confirm with counsel. */
+export const LEGAL_GOVERNING_LAW = "the United Arab Emirates";
+export const LEGAL_JURISDICTION = "Dubai, United Arab Emirates";
+export const LEGAL_PRIVACY_UPDATED = "7 October 2026";
+export const LEGAL_TERMS_UPDATED = "7 October 2026";
+export const LEGAL_REFUNDS_UPDATED = "7 October 2026";
 
 /**
  * Brand colors - single JS source of truth for PDF / non-CSS surfaces.
  * Keep in sync with `:root` tokens in `src/app/globals.css`
- * (`--brand-blue-dark`, `--brand-blue-light`, `--ink`, `--slate`).
+ * (`--brand-purple-dark`, `--brand-purple-light`, `--ink`, `--slate`).
  */
 export const BRAND_COLORS = {
-  /** Primary accent (matches --brand-blue-dark / --primary in light theme) */
-  primary: "#1D4ED8",
-  /** Lighter brand blue (matches --brand-blue-light) */
-  primaryLight: "#38BDF8",
+  /** Primary accent (matches --brand-purple-dark / --primary in light theme) */
+  primary: "#7C1CF0",
+  /** Lighter brand purple (matches --brand-purple-light) */
+  primaryLight: "#B65CFF",
   /** Body text (matches --ink light theme) */
-  ink: "#0F172A",
+  ink: "#0B1023",
   /** Muted text (matches --slate) */
   muted: "#64748B",
   /** Soft table header wash - light, printer-friendly */
-  tableHeader: "#F1F5F9",
+  tableHeader: "#F5F0FF",
   /** Hairline borders */
   border: "#E2E8F0",
 } as const;

@@ -12,14 +12,20 @@ import { useInvoice, useInvoiceMutations } from "@/hooks/use-invoices";
 import { HelpTip } from "@/components/ui/help-tip";
 import { amountInWords } from "@/lib/amount-in-words";
 import { buildPdfBlob, downloadInvoicePdf, printInvoicePdf } from "@/lib/invoice-pdf-download";
-import { invoiceAmountDue } from "@/lib/invoice-payment";
+import { INVOICE_STATUS_LABELS, invoiceAmountDue } from "@/lib/invoice-payment";
 import { isDemoMode } from "@/lib/demo/mode";
-import { formatDate, formatINR } from "@/lib/utils";
-import { Download, MessageCircle, Pencil, Printer, IndianRupee } from "lucide-react";
+import { formatDate, formatCurrency } from "@/lib/utils";
+import { Download, MessageCircle, Pencil, Printer, Banknote, Mail, PartyPopper, Plus, X } from "lucide-react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { buildUpiPayUrl, upiQrImageUrl } from "@/lib/upi";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { EmailInvoiceModal } from "@/components/invoices/email-invoice-modal";
+import type { EmailKind } from "@/lib/email/templates";
+import { formatQty, getUnit } from "@/lib/units";
+import { AnimatePresence, motion } from "motion/react";
+import { APP_NAME, BRAND_LOGO_ICON } from "@/lib/brand";
+import { buildVatBreakdown, normalizeVatCategory } from "@/lib/vat";
+import { getCountryConfig } from "@/lib/vat/countries";
 import {
   invoiceShareMessage,
   paymentReminderMessage,
@@ -52,19 +58,24 @@ export default function InvoiceDetailPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [waSharing, setWaSharing] = useState(false);
   const [noPhoneNote, setNoPhoneNote] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailKind, setEmailKind] = useState<EmailKind>("invoice");
+  const searchParams = useSearchParams();
+  const [justCreated, setJustCreated] = useState(false);
 
-  const upiUri = useMemo(() => {
-    if (!company?.upi_id || !invoice) return null;
-    if (invoice.status !== "issued" && invoice.status !== "partially_paid") return null;
-    const due = invoiceAmountDue(invoice.grand_total, invoice.amount_paid ?? 0);
-    if (due <= 0) return null;
-    return buildUpiPayUrl({
-      upiId: company.upi_id,
-      payeeName: company.brand_name || company.company_name,
-      amount: due,
-      note: invoice.invoice_number,
-    });
-  }, [company, invoice]);
+  // Arriving from "Generate invoice": open the email or celebrate, then tidy the URL
+  useEffect(() => {
+    if (!invoice) return;
+    const send = searchParams.get("send");
+    const created = searchParams.get("created");
+    if (!send && !created) return;
+    if (send === "email") {
+      setEmailKind("invoice");
+      setEmailOpen(true);
+    }
+    setJustCreated(true);
+    router.replace(`/invoices/${invoice.id}`, { scroll: false });
+  }, [invoice, searchParams, router]);
 
   const hasCustomerPhone = Boolean(
     invoice?.customer?.phone && invoice.customer.phone.replace(/\D/g, "").length > 0
@@ -81,9 +92,9 @@ export default function InvoiceDetailPage() {
         companyName: company.brand_name || company.company_name,
         invoiceNumber: invoice.invoice_number,
         amount: due,
+        currency: invoice.currency,
         customerName: invoice.customer?.name ?? "Customer",
         invoiceDate: formatDate(invoice.invoice_date),
-        upiId: company.upi_id,
       })
     );
   }, [invoice, company]);
@@ -102,7 +113,22 @@ export default function InvoiceDetailPage() {
   }
   if (!invoice) return <EmptyState title="Invoice not found" description={`No row for id ${id}`} />;
 
-  const intra = invoice.total_igst === 0;
+  const country = getCountryConfig(company?.country);
+  // Each invoice keeps the currency it was issued in (pre-VAT invoices are INR)
+  const money = (n: number) => formatCurrency(n, invoice.currency);
+  const breakdown = buildVatBreakdown(
+    (invoice.items ?? []).map((it) => ({
+      taxableValue: Number(it.taxable_value),
+      vatRate: Number(it.vat_rate),
+      vatAmount: Number(it.vat_amount),
+      vatCategory: normalizeVatCategory(it.vat_category, Number(it.vat_rate)),
+      lineTotal: Number(it.line_total),
+    }))
+  );
+  const vatLabel = (rate: number, category: unknown) => {
+    const cat = normalizeVatCategory(category, rate);
+    return cat === "standard" ? `${rate}%` : cat === "zero" ? "0%" : "Exempt";
+  };
   const amountPaid = invoice.amount_paid ?? 0;
   const amountDue = invoiceAmountDue(invoice.grand_total, amountPaid);
 
@@ -137,8 +163,8 @@ export default function InvoiceDetailPage() {
           companyName: company.brand_name || company.company_name,
           invoiceNumber: invoice.invoice_number,
           amount: amountDue,
+          currency: invoice.currency,
           customerName: invoice.customer?.name ?? "Customer",
-          upiId: company.upi_id,
         });
         const url = whatsappShareUrl(invoice.customer?.phone, message);
         toast("Demo mode - sharing without PDF link (Storage requires live Supabase)", "info");
@@ -150,7 +176,7 @@ export default function InvoiceDetailPage() {
       const form = new FormData();
       form.append(
         "pdf",
-        new File([blob], "AasanBill Invoice.pdf", { type: "application/pdf" })
+        new File([blob], `${APP_NAME} Invoice.pdf`, { type: "application/pdf" })
       );
 
       const res = await fetch(`/api/invoices/${invoice.id}/share-whatsapp`, {
@@ -196,6 +222,18 @@ export default function InvoiceDetailPage() {
             <Button loading={pdfLoading} onClick={() => handlePdf("download", 0)}>
               <Download className="h-4 w-4" /> PDF
             </Button>
+            {invoice.status !== "cancelled" && (
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => {
+                  setEmailKind("invoice");
+                  setEmailOpen(true);
+                }}
+              >
+                <Mail className="h-4 w-4" /> Email
+              </Button>
+            )}
             <div className="flex flex-col items-end gap-1">
               <Button
                 variant="secondary"
@@ -203,7 +241,7 @@ export default function InvoiceDetailPage() {
                 loading={waSharing}
                 onClick={() => void handleWhatsAppShare()}
               >
-                <MessageCircle className="h-4 w-4" /> Share on WhatsApp
+                <MessageCircle className="h-4 w-4" /> WhatsApp
               </Button>
               {(noPhoneNote || !hasCustomerPhone) && (
                 <p className="max-w-[220px] text-right text-[11px] text-slate">
@@ -214,6 +252,51 @@ export default function InvoiceDetailPage() {
           </>
         }
       />
+
+      <AnimatePresence>
+        {justCreated && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ type: "spring", stiffness: 260, damping: 24 }}
+            className="relative mb-4 overflow-hidden rounded-[14px] border border-primary/25 bg-gradient-to-r from-[#7c1cf0]/10 via-[#b65cff]/10 to-transparent p-4"
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-[0_6px_18px_rgba(124,28,240,0.35)]">
+                <PartyPopper className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-base font-semibold text-ink">
+                  {invoice.invoice_number} is ready - {money(invoice.grand_total)}
+                </p>
+                <p className="text-sm text-slate">Send it while it&apos;s fresh. Customers pay faster when the bill lands right away.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => (setEmailKind("invoice"), setEmailOpen(true))}>
+                  <Mail className="h-3.5 w-3.5" /> Email
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => void handleWhatsAppShare()}>
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </Button>
+                <Link href="/invoices/new">
+                  <Button size="sm" variant="outline">
+                    <Plus className="h-3.5 w-3.5" /> Another invoice
+                  </Button>
+                </Link>
+              </div>
+              <button
+                type="button"
+                onClick={() => setJustCreated(false)}
+                className="absolute right-2 top-2 rounded-full p-1 text-slate hover:bg-surface hover:text-ink"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Badge
@@ -227,8 +310,13 @@ export default function InvoiceDetailPage() {
                   : "info"
           }
         >
-          {invoice.status === "partially_paid" ? "Partially paid" : invoice.status}
+          {INVOICE_STATUS_LABELS[invoice.status]}
         </Badge>
+        {invoice.last_emailed_at && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+            <Mail className="h-3 w-3" /> Emailed {formatDate(invoice.last_emailed_at)}
+          </span>
+        )}
         {(invoice.status === "issued" || invoice.status === "partially_paid") && (
           <Link href={`/invoices/${invoice.id}/edit`}>
             <Button size="sm" variant="outline">
@@ -244,7 +332,7 @@ export default function InvoiceDetailPage() {
         {(invoice.status === "issued" || invoice.status === "partially_paid") && user && (
           <>
             <Button size="sm" onClick={() => setPayOpen(true)}>
-              <IndianRupee className="h-3.5 w-3.5" /> Record payment
+              <Banknote className="h-3.5 w-3.5" /> Record payment
             </Button>
             <Button
               size="sm"
@@ -260,9 +348,22 @@ export default function InvoiceDetailPage() {
         {remindWa && (
           <a href={remindWa} target="_blank" rel="noreferrer">
             <Button size="sm" variant="outline" type="button">
-              <MessageCircle className="h-3.5 w-3.5" /> Payment reminder
+              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp reminder
             </Button>
           </a>
+        )}
+        {amountDue > 0 && invoice.status !== "cancelled" && (
+          <Button
+            size="sm"
+            variant="outline"
+            type="button"
+            onClick={() => {
+              setEmailKind("reminder");
+              setEmailOpen(true);
+            }}
+          >
+            <Mail className="h-3.5 w-3.5" /> Email reminder
+          </Button>
         )}
         {isAdmin && invoice.status !== "cancelled" && (
           <Button size="sm" variant="danger" onClick={() => setCancelOpen(true)}>
@@ -273,8 +374,8 @@ export default function InvoiceDetailPage() {
           <div className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-[10px] bg-[var(--logo-plate)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo/aasanbill-icon.png"
-              alt="AasanBill"
+              src={BRAND_LOGO_ICON}
+              alt={APP_NAME}
               className="h-8 w-8 object-contain"
             />
           </div>
@@ -305,17 +406,22 @@ export default function InvoiceDetailPage() {
           <p className="text-slate">{invoice.customer?.billing_address}</p>
           <p className="text-ink">
             {invoice.customer?.state}
-            {invoice.customer?.gstin ? (
-              <span className="font-mono"> · {invoice.customer.gstin}</span>
+            {invoice.customer?.tax_id ? (
+              <span className="font-mono">
+                {invoice.customer?.state ? " · " : ""}
+                {country.taxIdLabel} {invoice.customer.tax_id}
+              </span>
             ) : (
-              " · Retail"
+              `${invoice.customer?.state ? " · " : ""}Not VAT registered`
             )}
           </p>
         </div>
         <div className="panel p-4 text-sm">
-          <p className="mb-1 text-xs text-slate">Supply type</p>
+          <p className="mb-1 text-xs text-slate">Pricing</p>
           <p className="font-semibold text-ink">
-            {intra ? "Intra-state (CGST + SGST)" : "Inter-state (IGST)"}
+            {invoice.prices_include_vat ? "Prices include VAT" : "VAT added to prices"}
+            {" · "}
+            {invoice.currency}
           </p>
           <p className="mt-2 text-slate">Created by {invoice.creator?.full_name ?? "-"}</p>
           {invoice.edited_at && (
@@ -329,36 +435,6 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {upiUri && company?.upi_id && (
-        <div className="panel mb-6 flex flex-wrap items-center gap-5 p-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={upiQrImageUrl(upiUri)}
-            alt="UPI payment QR"
-            width={140}
-            height={140}
-            className="rounded-[10px] border border-border bg-white p-2"
-          />
-          <div className="min-w-0 flex-1 text-sm">
-            <p className="font-display text-sm font-semibold text-ink">Pay via UPI</p>
-            <p className="mt-1 text-slate">
-              Scan QR or open UPI app - amount ₹{amountDue.toFixed(2)}
-            </p>
-            <p className="mt-2 font-mono text-xs text-ink">{company.upi_id}</p>
-            <a
-              href={upiUri}
-              className="mt-3 inline-flex text-xs font-medium text-primary hover:underline"
-            >
-              Open UPI payment link
-            </a>
-            <p className="mt-2 text-[11px] text-slate">
-              After the customer pays, click <strong>Mark paid</strong> (auto-confirm needs a payment
-              gateway).
-            </p>
-          </div>
-        </div>
-      )}
-
       <div className="panel overflow-x-auto">
         <table className="data-table">
           <thead className="bg-surface">
@@ -366,7 +442,7 @@ export default function InvoiceDetailPage() {
               <tr>
                 <th>#</th>
                 <th>Item</th>
-                <th>HUID</th>
+                <th>Hallmark No.</th>
                 <th>Purity</th>
                 <th>Gross Wt</th>
                 <th>Net Wt</th>
@@ -375,33 +451,18 @@ export default function InvoiceDetailPage() {
                 <th>Making</th>
                 <th>Stone</th>
                 <th>Taxable</th>
-                <th>GST%</th>
-                {intra ? (
-                  <>
-                    <th>CGST</th>
-                    <th>SGST</th>
-                  </>
-                ) : (
-                  <th>IGST</th>
-                )}
+                <th>VAT %</th>
+                <th>VAT</th>
               </tr>
             ) : (
               <tr>
                 <th>#</th>
                 <th>Product</th>
-                <th>HSN</th>
                 <th>Qty</th>
                 <th>Rate</th>
                 <th>Taxable</th>
-                <th>GST%</th>
-                {intra ? (
-                  <>
-                    <th>CGST</th>
-                    <th>SGST</th>
-                  </>
-                ) : (
-                  <th>IGST</th>
-                )}
+                <th>VAT %</th>
+                <th>VAT</th>
                 <th>Total</th>
               </tr>
             )}
@@ -423,12 +484,11 @@ export default function InvoiceDetailPage() {
                           Rate override
                         </Badge>
                       )}
-                      <p className="mt-0.5 font-mono text-[11px] text-slate">
-                        HSN {item.hsn_code}
-                        {(item.rate_locked_at_sale ?? item.metal_rate_used) != null
-                          ? ` · Locked ${formatINR(item.rate_locked_at_sale ?? item.metal_rate_used!)}/g`
-                          : ""}
-                      </p>
+                      {(item.rate_locked_at_sale ?? item.metal_rate_used) != null && (
+                        <p className="mt-0.5 font-mono text-[11px] text-slate">
+                          Locked {money(item.rate_locked_at_sale ?? item.metal_rate_used!)}/g
+                        </p>
+                      )}
                     </td>
                     <td className="font-mono text-xs">
                       {item.jewellery_huid || item.product?.huid_number || "-"}
@@ -438,30 +498,23 @@ export default function InvoiceDetailPage() {
                     <td className="num">{item.net_weight ?? "-"}</td>
                     <td className="num">
                       {item.metal_rate_used != null
-                        ? formatINR(item.metal_rate_used)
+                        ? money(item.metal_rate_used)
                         : "-"}
                     </td>
                     <td className="num">
-                      {metalValue != null ? formatINR(metalValue) : "-"}
+                      {metalValue != null ? money(metalValue) : "-"}
                     </td>
                     <td className="num">
                       {item.making_charge_amount != null
-                        ? formatINR(item.making_charge_amount)
+                        ? money(item.making_charge_amount)
                         : "-"}
                     </td>
                     <td className="num">
-                      {item.stone_value != null ? formatINR(item.stone_value) : "-"}
+                      {item.stone_value != null ? money(item.stone_value) : "-"}
                     </td>
-                    <td className="num">{formatINR(item.taxable_value)}</td>
-                    <td className="num">{item.gst_rate}%</td>
-                    {intra ? (
-                      <>
-                        <td className="num">{formatINR(item.cgst_amount)}</td>
-                        <td className="num">{formatINR(item.sgst_amount)}</td>
-                      </>
-                    ) : (
-                      <td className="num">{formatINR(item.igst_amount)}</td>
-                    )}
+                    <td className="num">{money(item.taxable_value)}</td>
+                    <td className="num">{vatLabel(item.vat_rate, item.vat_category)}</td>
+                    <td className="num">{money(item.vat_amount)}</td>
                   </tr>
                 );
               }
@@ -496,31 +549,23 @@ export default function InvoiceDetailPage() {
                         .join(" · ")}
                     </p>
                   )}
-                  {item.hsn_code && (
-                    <p className="mt-0.5 font-mono text-[11px] text-slate">
-                      {isHotel ? "SAC" : "HSN"} {item.hsn_code}
-                      {(item.rate_locked_at_sale ?? item.metal_rate_used) != null
-                        ? ` · Locked ${formatINR(
-                            Number(item.rate_locked_at_sale ?? item.metal_rate_used)
-                          )}/g`
-                        : ""}
+                  {isHotel && item.quantity > 0 && (
+                    <p className="mt-0.5 text-[11px] text-slate">
+                      {item.quantity} night{item.quantity === 1 ? "" : "s"}
                     </p>
                   )}
                 </td>
-                <td className="font-mono text-xs">{item.hsn_code}</td>
-                <td className="num">{item.quantity}</td>
-                <td className="num">{formatINR(item.unit_price)}</td>
-                <td className="num">{formatINR(item.taxable_value)}</td>
-                <td className="num">{item.gst_rate}%</td>
-                {intra ? (
-                  <>
-                    <td className="num">{formatINR(item.cgst_amount)}</td>
-                    <td className="num">{formatINR(item.sgst_amount)}</td>
-                  </>
-                ) : (
-                  <td className="num">{formatINR(item.igst_amount)}</td>
-                )}
-                <td className="num font-medium">{formatINR(item.line_total)}</td>
+                <td className="num">{formatQty(item.quantity, item.unit ?? item.product?.unit)}</td>
+                <td className="num">
+                  {money(item.unit_price)}
+                  {!item.room_booking_id && (
+                    <span className="ml-1 text-[11px] text-slate">/ {getUnit(item.unit ?? item.product?.unit).short}</span>
+                  )}
+                </td>
+                <td className="num">{money(item.taxable_value)}</td>
+                <td className="num">{vatLabel(item.vat_rate, item.vat_category)}</td>
+                <td className="num">{money(item.vat_amount)}</td>
+                <td className="num font-medium">{money(item.line_total)}</td>
               </tr>
             );
             })}
@@ -530,48 +575,43 @@ export default function InvoiceDetailPage() {
 
       <div className="mt-6 ml-auto w-full max-w-sm space-y-2.5 panel p-5">
         <div className="leader-row text-sm">
-          <span className="shrink-0 text-slate">Subtotal</span>
+          <span className="shrink-0 text-slate">Total excl. VAT</span>
           <span className="leader-line" aria-hidden />
-          <span className="shrink-0 font-mono text-ink">{formatINR(invoice.subtotal)}</span>
+          <span className="shrink-0 font-mono text-ink">{money(invoice.subtotal)}</span>
         </div>
-        {intra ? (
-          <>
-            <div className="leader-row text-sm">
-              <span className="inline-flex shrink-0 items-center gap-1 text-slate">
-                CGST <HelpTip helpKey="cgst" />
-              </span>
-              <span className="leader-line" aria-hidden />
-              <span className="shrink-0 font-mono text-ink">{formatINR(invoice.total_cgst)}</span>
-            </div>
-            <div className="leader-row text-sm">
-              <span className="inline-flex shrink-0 items-center gap-1 text-slate">
-                SGST <HelpTip helpKey="sgst" />
-              </span>
-              <span className="leader-line" aria-hidden />
-              <span className="shrink-0 font-mono text-ink">{formatINR(invoice.total_sgst)}</span>
-            </div>
-          </>
-        ) : (
-          <div className="leader-row text-sm">
+        {breakdown.map((b) => (
+          <div key={`${b.vatCategory}-${b.vatRate}`} className="leader-row text-sm">
             <span className="inline-flex shrink-0 items-center gap-1 text-slate">
-              IGST <HelpTip helpKey="igst" />
+              {b.vatCategory === "standard"
+                ? `VAT ${b.vatRate}%`
+                : b.vatCategory === "zero"
+                  ? `Zero-rated (${money(b.taxableValue)})`
+                  : `Exempt (${money(b.taxableValue)})`}
+              {b.vatCategory === "standard" ? <HelpTip helpKey="vat" /> : null}
             </span>
             <span className="leader-line" aria-hidden />
-            <span className="shrink-0 font-mono text-ink">{formatINR(invoice.total_igst)}</span>
+            <span className="shrink-0 font-mono text-ink">{money(b.vatAmount)}</span>
+          </div>
+        ))}
+        <div className="leader-row text-sm">
+          <span className="shrink-0 text-slate">Total VAT</span>
+          <span className="leader-line" aria-hidden />
+          <span className="shrink-0 font-mono text-ink">{money(invoice.total_vat)}</span>
+        </div>
+        {Number(invoice.round_off) !== 0 && (
+          <div className="leader-row text-sm">
+            <span className="shrink-0 text-slate">Round off</span>
+            <span className="leader-line" aria-hidden />
+            <span className="shrink-0 font-mono text-ink">{money(invoice.round_off)}</span>
           </div>
         )}
-        <div className="leader-row text-sm">
-          <span className="shrink-0 text-slate">Round off</span>
-          <span className="leader-line" aria-hidden />
-          <span className="shrink-0 font-mono text-ink">{formatINR(invoice.round_off)}</span>
-        </div>
         <div className="mt-2 rounded-[10px] border border-sage bg-sage-soft px-3 py-3">
           <div className="flex items-end justify-between gap-3">
             <span className="font-display text-xs font-semibold uppercase tracking-[0.06em] text-sage">
-              Grand Total
+              Total incl. VAT
             </span>
             <span className="font-display text-2xl font-semibold tracking-tight text-sage">
-              <span className="font-mono">{formatINR(invoice.grand_total)}</span>
+              <span className="font-mono">{money(invoice.grand_total)}</span>
             </span>
           </div>
         </div>
@@ -579,15 +619,15 @@ export default function InvoiceDetailPage() {
           <div className="mt-2 space-y-1 text-sm">
             <div className="flex justify-between text-slate">
               <span>Amount paid</span>
-              <span className="font-mono text-emerald">{formatINR(amountPaid)}</span>
+              <span className="font-mono text-emerald">{money(amountPaid)}</span>
             </div>
             <div className="flex justify-between font-semibold text-ink">
               <span>Balance due</span>
-              <span className="font-mono text-coral-deep">{formatINR(amountDue)}</span>
+              <span className="font-mono text-coral-deep">{money(amountDue)}</span>
             </div>
           </div>
         )}
-        <p className="mt-1 text-right text-xs text-slate">{amountInWords(invoice.grand_total)}</p>
+        <p className="mt-1 text-right text-xs text-slate">{amountInWords(invoice.grand_total, invoice.currency)}</p>
       </div>
 
       <div className="mt-10 flex justify-end">
@@ -614,7 +654,7 @@ export default function InvoiceDetailPage() {
         open={forceEditOpen}
         onClose={() => setForceEditOpen(false)}
         title="Edit a non-issued invoice?"
-        message={`This invoice is ${invoice.status}. Editing after payment or cancellation should only be done when absolutely necessary. Stock will be reversed and re-applied. Continue?`}
+        message={`This invoice is ${INVOICE_STATUS_LABELS[invoice.status].toLowerCase()}. Editing after payment or cancellation should only be done when absolutely necessary. Stock will be reversed and re-applied. Continue?`}
         confirmLabel="Edit anyway"
         danger
         onConfirm={() => {
@@ -653,6 +693,12 @@ export default function InvoiceDetailPage() {
           />
         </div>
       )}
+      <EmailInvoiceModal
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        invoice={invoice}
+        initialKind={emailKind}
+      />
       <RecordPaymentModal
         open={payOpen}
         onClose={() => setPayOpen(false)}

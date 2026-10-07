@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      :root {
+        --bg: #0b0817;
+        --surface: #17122b;
+        --ink: #f6f1ff;
+        --mute: #b3a9d4;
+        --accent: #b65cff;
+        --deep: #7c1cf0;
+        --mint: #34d399;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--bg);
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        font-family: "Montserrat", sans-serif;
+        color: var(--ink);
+      }
+      .mono {
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .scene {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* ---------- persistent background ---------- */
+      #bg {
+        position: absolute;
+        inset: 0;
+      }
+      .glow {
+        position: absolute;
+        border-radius: 50%;
+      }
+      #glowA {
+        width: 1500px;
+        height: 1500px;
+        left: -520px;
+        top: -760px;
+        background: radial-gradient(circle, rgba(124, 28, 240, 0.34) 0%, rgba(124, 28, 240, 0) 66%);
+      }
+      #glowB {
+        width: 1300px;
+        height: 1300px;
+        right: -420px;
+        bottom: -700px;
+        background: radial-gradient(circle, rgba(182, 92, 255, 0.28) 0%, rgba(182, 92, 255, 0) 66%);
+      }
+      #glowC {
+        width: 900px;
+        height: 900px;
+        left: 760px;
+        top: 260px;
+        background: radial-gradient(circle, rgba(217, 70, 239, 0.12) 0%, rgba(217, 70, 239, 0) 66%);
+      }
+      #grid {
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(rgba(182, 140, 255, 0.1) 2px, transparent 2px),
+          linear-gradient(90deg, rgba(182, 140, 255, 0.1) 2px, transparent 2px);
+        background-size: 120px 120px;
+        -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 20%, transparent 100%);
+        mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 20%, transparent 100%);
+      }
+
+      /* ---------- type ---------- */
+      .xl {
+        font-weight: 900;
+        letter-spacing: -0.045em;
+        line-height: 0.98;
+      }
+      .acc {
+        color: var(--accent);
+      }
+      .thin {
+        font-weight: 400;
+        letter-spacing: -0.035em;
+      }
+      .word {
+        display: inline-block;
+      }
+      .eyebrow {
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 700;
+        font-size: 26px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      /* ---------- scene 1 ---------- */
+      #m1 {
+        position: absolute;
+        left: 810px;
+        top: 390px;
+        width: 300px;
+        height: 300px;
+      }
+      #m1 img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      .ring {
+        position: absolute;
+        left: 760px;
+        top: 340px;
+        width: 400px;
+        height: 400px;
+        border-radius: 50%;
+        border: 4px solid var(--accent);
+      }
+      #brandline {
+        position: absolute;
+        left: 232px;
+        top: 98px;
+        font-weight: 900;
+        font-size: 58px;
+        letter-spacing: -0.03em;
+      }
+      #h1 {
+        position: absolute;
+        left: 100px;
+        top: 292px;
+        font-size: 214px;
+      }
+      #h1 .l2 {
+        display: block;
+        margin-top: 4px;
+      }
+      #sub1 {
+        position: absolute;
+        left: 108px;
+        top: 818px;
+        font-size: 34px;
+        color: var(--mute);
+        letter-spacing: 0.02em;
+      }
+      #ribbon {
+        position: absolute;
+        left: 100px;
+        top: 870px;
+        width: 1720px;
+        height: 120px;
+      }
+
+      /* ---------- window frame ---------- */
+      .win {
+        position: absolute;
+        border-radius: 22px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 50px 140px rgba(124, 28, 240, 0.42), 0 0 0 2px rgba(255, 255, 255, 0.16);
+      }
+      .win .bar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 36px;
+        background: #1b1635;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 18px;
+      }
+      .win .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.28);
+      }
+      .win .addr {
+        margin-left: 14px;
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 400;
+        font-size: 18px;
+        color: var(--mute);
+      }
+      .win .view {
+        position: absolute;
+        left: 0;
+        top: 36px;
+        width: 100%;
+        overflow: hidden;
+        background: #f8fafc;
+      }
+      .zo,
+      .zi {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .zi img {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      /* ---------- chips / cards ---------- */
+      .chip {
+        position: absolute;
+        left: 100px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 26px 14px 18px;
+        border-radius: 999px;
+        border: 2px solid rgba(182, 92, 255, 0.55);
+        background: rgba(182, 92, 255, 0.16);
+        font-weight: 700;
+        font-size: 30px;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+      }
+      .chip .ck {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card {
+        position: absolute;
+        padding: 22px 30px;
+        border-radius: 24px;
+        background: #1d1736;
+        border: 2px solid rgba(255, 255, 255, 0.16);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      }
+      .card .lab {
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 400;
+        font-size: 22px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--mute);
+      }
+      .card .num {
+        margin-top: 8px;
+        font-size: 44px;
+        color: var(--ink);
+      }
+      .card .num.mint {
+        color: var(--mint);
+      }
+
+      /* ---------- scene 2 ---------- */
+      #h2 {
+        position: absolute;
+        left: 90px;
+        top: 196px;
+        font-size: 80px;
+      }
+      #h2 span {
+        display: block;
+      }
+      #w2 {
+        left: 700px;
+        top: 190px;
+        width: 1120px;
+        height: 666px;
+      }
+      #w2 .view {
+        height: 630px;
+      }
+      #cursor {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 54px;
+        height: 54px;
+      }
+      .rip {
+        position: absolute;
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        border: 4px solid var(--accent);
+      }
+      #vatpill {
+        left: 100px;
+        top: 846px;
+        width: 520px;
+      }
+
+      /* ---------- scene 3 ---------- */
+      #h3 {
+        position: absolute;
+        left: 100px;
+        top: 96px;
+        font-size: 118px;
+      }
+      #h3 span {
+        display: block;
+      }
+      #cam3 {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1920px;
+        height: 1080px;
+      }
+      #w3 {
+        left: 560px;
+        top: 400px;
+        width: 1500px;
+        height: 880px;
+      }
+      #w3 .view {
+        height: 844px;
+      }
+      #c3a {
+        left: 100px;
+        top: 420px;
+        width: 440px;
+      }
+      #c3b {
+        left: 100px;
+        top: 590px;
+        width: 440px;
+      }
+      #c3c {
+        left: 100px;
+        top: 760px;
+        width: 440px;
+      }
+
+      /* ---------- scene 4 ---------- */
+      #h4 {
+        position: absolute;
+        left: 90px;
+        top: 150px;
+        font-size: 88px;
+      }
+      #h4 span {
+        display: block;
+      }
+      #w4 {
+        left: 700px;
+        top: 190px;
+        width: 1120px;
+        height: 666px;
+      }
+      #w4 .view {
+        height: 630px;
+      }
+      .hl {
+        position: absolute;
+        left: 205px;
+        width: 898px;
+        height: 36px;
+        border-radius: 8px;
+        border: 4px solid var(--accent);
+        background: rgba(182, 92, 255, 0.2);
+      }
+      #eq {
+        position: absolute;
+        left: 90px;
+        top: 520px;
+        width: 560px;
+      }
+      #eq .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 18px 0;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.14);
+      }
+      #eq .k {
+        font-weight: 700;
+        font-size: 28px;
+        color: var(--mute);
+      }
+      #eq .v {
+        font-size: 46px;
+      }
+      #eq .total .k {
+        color: var(--ink);
+      }
+      #eq .total .v {
+        color: var(--mint);
+        font-size: 54px;
+      }
+
+      /* ---------- scene 5 ---------- */
+      #h5 {
+        position: absolute;
+        left: 90px;
+        top: 214px;
+        font-size: 92px;
+      }
+      #h5 span {
+        display: block;
+      }
+      .tile {
+        position: absolute;
+        width: 560px;
+        height: 340px;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 40px 100px rgba(124, 28, 240, 0.4), 0 0 0 2px rgba(255, 255, 255, 0.16);
+        background: #f8fafc;
+      }
+      .tile img {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: left top;
+        display: block;
+      }
+      .tile .cap {
+        position: absolute;
+        left: 18px;
+        bottom: 18px;
+        padding: 8px 18px;
+        border-radius: 999px;
+        background: #1b1635;
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 700;
+        font-size: 24px;
+        color: var(--ink);
+      }
+      #t1 {
+        left: 700px;
+        top: 200px;
+      }
+      #t2 {
+        left: 1284px;
+        top: 200px;
+      }
+      #t3 {
+        left: 700px;
+        top: 564px;
+      }
+      #t4 {
+        left: 1284px;
+        top: 564px;
+      }
+
+      /* ---------- scene 6 ---------- */
+      #m6 {
+        position: absolute;
+        left: 830px;
+        top: 150px;
+        width: 260px;
+        height: 260px;
+      }
+      #m6 img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      #wm6 {
+        position: absolute;
+        left: 0;
+        top: 440px;
+        width: 1920px;
+        text-align: center;
+        font-size: 170px;
+      }
+      #tag6 {
+        position: absolute;
+        left: 0;
+        top: 650px;
+        width: 1920px;
+        text-align: center;
+        font-size: 58px;
+        color: var(--mute);
+        letter-spacing: -0.01em;
+      }
+      #cta6 {
+        position: absolute;
+        left: 610px;
+        top: 800px;
+        width: 700px;
+        height: 118px;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #14092b;
+        font-weight: 900;
+        font-size: 44px;
+        letter-spacing: -0.02em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 20px 80px rgba(182, 92, 255, 0.55);
+      }
+      .ring6 {
+        position: absolute;
+        left: 760px;
+        top: 80px;
+        width: 400px;
+        height: 400px;
+        border-radius: 50%;
+        border: 4px solid var(--accent);
+      }
+
+      /* ---------- seam wipes ---------- */
+      .wipe {
+        position: absolute;
+        left: -200px;
+        top: -100px;
+        width: 2400px;
+        height: 1280px;
+      }
+      #wipeA {
+        background: var(--deep);
+      }
+      #wipeB {
+        background: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-nh7l" id="root" data-composition-id="main" data-start="0" data-duration="36" data-width="1920" data-height="1080">
+      <!-- persistent background -->
+      <div data-hf-id="hf-2xc0" id="bg">
+        <div data-hf-id="hf-gs5t" id="grid"></div>
+        <div data-hf-id="hf-fcgb" id="glowA" class="glow"></div>
+        <div data-hf-id="hf-4gyo" id="glowB" class="glow"></div>
+        <div data-hf-id="hf-58mh" id="glowC" class="glow"></div>
+      </div>
+
+      <!-- ========== 1  OPEN ========== -->
+      <section data-hf-id="hf-ftz4" id="s1" class="clip scene" data-start="0" data-duration="5" data-track-index="1">
+        <div data-hf-id="hf-cnd9" class="ring r1"></div>
+        <div data-hf-id="hf-glha" class="ring r2"></div>
+        <div data-hf-id="hf-mr73" class="ring r3"></div>
+        <div data-hf-id="hf-ye6f" id="m1"><img data-hf-id="hf-yy1y" src="assets/img/logo-mark.png" alt=""></div>
+        <div data-hf-id="hf-vq4o" id="brandline">NovaFlow</div>
+        <h1 data-hf-id="hf-hhpd" id="h1" class="xl">
+          <span data-hf-id="hf-tw3c" class="line l1"><span data-hf-id="hf-jzd9" class="word w">VAT</span> <span data-hf-id="hf-7vfl" class="word w">billing</span></span>
+          <span data-hf-id="hf-aknh" class="line l2 acc thin"><span data-hf-id="hf-j5bb" class="word w">that</span> <span data-hf-id="hf-ind0" class="word w">just</span> <span data-hf-id="hf-yv9b" class="word w">flows.</span></span>
+        </h1>
+        <div data-hf-id="hf-yftv" id="sub1" class="mono">UAE · AED · FTA-ready tax invoices</div>
+        <svg data-hf-id="hf-70i0" id="ribbon" viewBox="0 0 1720 120" fill="none">
+          <path data-hf-id="hf-2t29" id="ribbonPath" d="M2 86 C 260 6, 560 168, 880 70 S 1480 12, 1718 76" pathLength="1" stroke="#b65cff" stroke-width="9" stroke-linecap="round" stroke-dasharray="1" stroke-dashoffset="1" />
+        </svg>
+      </section>
+
+      <!-- ========== 2  INVOICE IN SECONDS ========== -->
+      <section data-hf-id="hf-avz5" id="s2" class="clip scene" data-start="5" data-duration="7.5" data-track-index="1">
+        <h2 data-hf-id="hf-ghtj" id="h2" class="xl"><span data-hf-id="hf-1197" class="w2">Tax</span><span data-hf-id="hf-izla" class="w2">invoices</span><span data-hf-id="hf-dowb" class="w2 acc">in seconds.</span></h2>
+        <div data-hf-id="hf-clle" class="chip" id="chip1" style="top: 560px">
+          <span data-hf-id="hf-ga0f" class="ck"><svg data-hf-id="hf-076s" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14092b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path data-hf-id="hf-ci36" d="M5 12l5 5 9-10" /></svg></span>TRN on every invoice
+        </div>
+        <div data-hf-id="hf-1dbh" class="chip" id="chip2" style="top: 650px">
+          <span data-hf-id="hf-h7m7" class="ck"><svg data-hf-id="hf-t4po" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14092b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path data-hf-id="hf-54uu" d="M5 12l5 5 9-10" /></svg></span>5% VAT, worked out
+        </div>
+        <div data-hf-id="hf-z1mp" class="chip" id="chip3" style="top: 740px">
+          <span data-hf-id="hf-gtb6" class="ck"><svg data-hf-id="hf-rxsl" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14092b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path data-hf-id="hf-5j5v" d="M5 12l5 5 9-10" /></svg></span>Prices incl. or excl. VAT
+        </div>
+
+        <div data-hf-id="hf-zyon" id="w2" class="win">
+          <div data-hf-id="hf-ufsv" class="bar"><span data-hf-id="hf-9gry" class="dot"></span><span data-hf-id="hf-zcc2" class="dot"></span><span data-hf-id="hf-zqn3" class="dot"></span><span data-hf-id="hf-061a" class="addr">novaflow / invoices / new</span></div>
+          <div data-hf-id="hf-z18r" class="view">
+            <div data-hf-id="hf-bd77" class="zo" id="zo2" data-layout-allow-overflow="">
+              <div data-hf-id="hf-wwa4" class="zi" id="zi2">
+                <img data-hf-id="hf-nfx1" id="i1" src="assets/img/invoice-step1-search.jpg" alt="">
+                <img data-hf-id="hf-v6ok" id="i2" src="assets/img/invoice-step2.jpg" alt="">
+                <img data-hf-id="hf-uywm" id="i3" src="assets/img/invoice-step3.jpg" alt="">
+                <img data-hf-id="hf-6lz2" id="i4" src="assets/img/invoice-step3-incl.jpg" alt="">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div data-hf-id="hf-pcuk" class="card" id="vatpill">
+          <div data-hf-id="hf-z9k1" class="lab">VAT 5% on AED 4,000.00</div>
+          <div data-hf-id="hf-u2ay" class="num mono mint" id="vatnum">AED 0.00</div>
+        </div>
+
+        <div data-hf-id="hf-xydx" class="rip" id="rip1"></div>
+        <div data-hf-id="hf-1why" class="rip" id="rip2"></div>
+        <div data-hf-id="hf-5ulz" class="rip" id="rip3"></div>
+        <svg data-hf-id="hf-k0gv" id="cursor" viewBox="0 0 54 54" fill="none">
+          <path data-hf-id="hf-zumj" d="M3 3 L3 40 L12 31 L19 47 L27 44 L20 28 L33 28 Z" fill="#ffffff" stroke="#14092b" stroke-width="3" stroke-linejoin="round" />
+        </svg>
+      </section>
+
+      <!-- ========== 3  DASHBOARD ========== -->
+      <section data-hf-id="hf-w1r8" id="s3" class="clip scene" data-start="12.5" data-duration="7" data-track-index="1">
+        <div data-hf-id="hf-u1cl" id="cam3">
+          <div data-hf-id="hf-udn3" id="w3" class="win" data-layout-allow-overflow="">
+            <div data-hf-id="hf-c51b" class="bar"><span data-hf-id="hf-04y4" class="dot"></span><span data-hf-id="hf-0j95" class="dot"></span><span data-hf-id="hf-0xk6" class="dot"></span><span data-hf-id="hf-k0w7" class="addr">novaflow / dashboard</span></div>
+            <div data-hf-id="hf-2kx7" class="view"><div data-hf-id="hf-xj75" class="zo"><div data-hf-id="hf-qltj" class="zi"><img data-hf-id="hf-qw13" src="assets/img/dashboard.jpg" alt=""></div></div></div>
+          </div>
+        </div>
+        <h2 data-hf-id="hf-cjpi" id="h3" class="xl"><span data-hf-id="hf-ey4a" class="w3">Your business,</span><span data-hf-id="hf-mzl4" class="w3 acc">live.</span></h2>
+        <div data-hf-id="hf-1lsf" class="card" id="c3a">
+          <div data-hf-id="hf-yys8" class="lab">Today's sales</div>
+          <div data-hf-id="hf-wu2r" class="num mono" id="n3a">AED 0</div>
+        </div>
+        <div data-hf-id="hf-sxwk" class="card" id="c3b">
+          <div data-hf-id="hf-x0fj" class="lab">Waiting to be collected</div>
+          <div data-hf-id="hf-f85a" class="num mono" id="n3b">AED 0</div>
+        </div>
+        <div data-hf-id="hf-tpkd" class="card" id="c3c">
+          <div data-hf-id="hf-6ker" class="lab">Billing streak</div>
+          <div data-hf-id="hf-kg35" class="num mono mint" id="n3c">0</div>
+        </div>
+      </section>
+
+      <!-- ========== 4  VAT 201 ========== -->
+      <section data-hf-id="hf-wvz3" id="s4" class="clip scene" data-start="19.5" data-duration="7.5" data-track-index="1">
+        <h2 data-hf-id="hf-l7ld" id="h4" class="xl"><span data-hf-id="hf-ps30" class="w4">Your VAT</span><span data-hf-id="hf-z6gi" class="w4">return,</span><span data-hf-id="hf-d0ls" class="w4 acc">ready.</span></h2>
+        <div data-hf-id="hf-4ogh" id="w4" class="win">
+          <div data-hf-id="hf-bqqa" class="bar"><span data-hf-id="hf-1bv7" class="dot"></span><span data-hf-id="hf-1q68" class="dot"></span><span data-hf-id="hf-vrkt" class="dot"></span><span data-hf-id="hf-vxhb" class="addr">novaflow / reports / vat 201</span></div>
+          <div data-hf-id="hf-26m6" class="view">
+            <div data-hf-id="hf-quz9" class="zo" id="zo4" data-layout-allow-overflow="">
+              <div data-hf-id="hf-gfnm" class="zi" id="zi4">
+                <img data-hf-id="hf-sdct" src="assets/img/vat201b.jpg" alt="">
+                <div data-hf-id="hf-weml" class="hl" id="hl8" style="top: 459px"></div>
+                <div data-hf-id="hf-li48" class="hl" id="hl9" style="top: 488px"></div>
+                <div data-hf-id="hf-ips6" class="hl" id="hl14" style="top: 574px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div data-hf-id="hf-dmpr" id="eq">
+          <div data-hf-id="hf-v14x" class="row" id="eq1"><span data-hf-id="hf-jug2" class="k">Output VAT</span><span data-hf-id="hf-lr2s" class="v mono" id="e1">0.00</span></div>
+          <div data-hf-id="hf-yz8y" class="row" id="eq2"><span data-hf-id="hf-yzdp" class="k">− Input VAT</span><span data-hf-id="hf-9qbv" class="v mono" id="e2">0.00</span></div>
+          <div data-hf-id="hf-u589" class="row total" id="eq3"><span data-hf-id="hf-flx9" class="k">= Payable</span><span data-hf-id="hf-3s7i" class="v mono" id="e3">0.00</span></div>
+        </div>
+      </section>
+
+      <!-- ========== 5  EVERYTHING ELSE ========== -->
+      <section data-hf-id="hf-mtdf" id="s5" class="clip scene" data-start="27" data-duration="4.5" data-track-index="1">
+        <h2 data-hf-id="hf-kfxk" id="h5" class="xl">
+          <span data-hf-id="hf-vkew" class="w5">Customers.</span><span data-hf-id="hf-3dkj" class="w5 acc thin">Products.</span><span data-hf-id="hf-nfd5" class="w5">Stock.</span><span data-hf-id="hf-2zjs" class="w5 acc thin">Credit.</span>
+        </h2>
+        <div data-hf-id="hf-awen" class="tile" id="t1"><img data-hf-id="hf-ggkk" src="assets/img/customers.jpg" alt=""><span data-hf-id="hf-oc68" class="cap">Customers</span></div>
+        <div data-hf-id="hf-28is" class="tile" id="t2"><img data-hf-id="hf-hp8n" src="assets/img/products.jpg" alt=""><span data-hf-id="hf-u3zj" class="cap">Products</span></div>
+        <div data-hf-id="hf-306l" class="tile" id="t3"><img data-hf-id="hf-0db7" src="assets/img/invoices.jpg" alt=""><span data-hf-id="hf-4433" class="cap">Invoices</span></div>
+        <div data-hf-id="hf-lrwa" class="tile" id="t4"><img data-hf-id="hf-fxls" src="assets/img/settings.jpg" alt=""><span data-hf-id="hf-dlzv" class="cap">Settings · TRN</span></div>
+      </section>
+
+      <!-- ========== 6  CLOSE ========== -->
+      <section data-hf-id="hf-ug0y" id="s6" class="clip scene" data-start="31.5" data-duration="4.5" data-track-index="1">
+        <div data-hf-id="hf-5yfi" class="ring6 q1"></div>
+        <div data-hf-id="hf-zspp" class="ring6 q2"></div>
+        <div data-hf-id="hf-2cag" id="m6"><img data-hf-id="hf-z2jp" src="assets/img/logo-mark-close.png" alt=""></div>
+        <div data-hf-id="hf-wlke" id="wm6" class="xl">NovaFlow</div>
+        <div data-hf-id="hf-y7nf" id="tag6" class="thin">VAT billing that just flows.</div>
+        <div data-hf-id="hf-zhpq" id="cta6">Start your 14-day free trial</div>
+      </section>
+
+      <!-- seam wipes (always on top) -->
+      <div data-hf-id="hf-zhnn" id="wipeA" class="wipe"></div>
+      <div data-hf-id="hf-qtrs" id="wipeB" class="wipe"></div>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      const SEAMS = [5, 12.5, 19.5, 27, 31.5];
+
+      /* ---- ambient background (finite loops) ---- */
+      tl.to("#glowA", { x: 180, y: 120, duration: 9, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0);
+      tl.to("#glowB", { x: -200, y: -120, duration: 9, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0);
+      tl.to("#glowC", { x: 220, y: -90, scale: 1.25, duration: 9, ease: "sine.inOut", yoyo: true, repeat: 3 }, 0);
+
+      /* ---- seam wipes: a purple ribbon sweeps across and the scene cuts under it ---- */
+      tl.set(["#wipeA", "#wipeB"], { skewX: -12, x: -2800 }, 0);
+      SEAMS.forEach((T) => {
+        tl.fromTo("#wipeB", { x: -2800 }, { x: 0, duration: 0.42, ease: "power3.in" }, T - 0.42);
+        tl.fromTo("#wipeA", { x: -2800 }, { x: 0, duration: 0.42, ease: "power3.in" }, T - 0.34);
+        tl.to("#wipeB", { x: 2800, duration: 0.5, ease: "power3.out" }, T + 0.02);
+        tl.to("#wipeA", { x: 2800, duration: 0.5, ease: "power3.out" }, T + 0.1);
+      });
+
+      /* =========================================================
+         SCENE 1  (0 - 5)  open: mark pops, rings, headline slams
+         ========================================================= */
+      tl.fromTo("#m1", { scale: 0.35, opacity: 0, transformOrigin: "50% 50%" }, { scale: 1, opacity: 1, duration: 0.85, ease: "back.out(1.8)" }, 0.15);
+      tl.fromTo(".r1", { scale: 0.7, opacity: 0.6 }, { scale: 2.6, opacity: 0, duration: 1.1, ease: "power2.out" }, 0.55);
+      tl.fromTo(".r2", { scale: 0.7, opacity: 0.5 }, { scale: 2.6, opacity: 0, duration: 1.1, ease: "power2.out" }, 0.75);
+      tl.fromTo(".r3", { scale: 0.7, opacity: 0.4 }, { scale: 2.6, opacity: 0, duration: 1.1, ease: "power2.out" }, 0.95);
+      // mark tucks up to the corner
+      tl.to("#m1", { x: -810, y: -400, scale: 0.3, duration: 0.85, ease: "power3.inOut" }, 1.45);
+      tl.fromTo("#brandline", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.6, ease: "power3.out" }, 2.05);
+      // headline slam
+      tl.fromTo(
+        "#h1 .w",
+        { y: 190, opacity: 0, rotate: 5, transformOrigin: "0% 100%" },
+        { y: 0, opacity: 1, rotate: 0, duration: 0.75, ease: "power4.out", stagger: 0.1 },
+        1.75
+      );
+      tl.fromTo("#sub1", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 3.0);
+      tl.fromTo("#ribbonPath", { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.1, ease: "power2.inOut" }, 2.95);
+      // headline drifts slightly so nothing sits still
+      tl.to("#h1", { x: 22, duration: 3.2, ease: "sine.inOut" }, 1.9);
+
+      /* =========================================================
+         SCENE 2  (5 - 12.5)  invoice wizard with cursor
+         ========================================================= */
+      tl.set(["#i2", "#i3", "#i4"], { opacity: 0 }, 0);
+      tl.set(["#cursor", "#rip1", "#rip2", "#rip3"], { opacity: 0 }, 0);
+      tl.set("#cursor", { x: 1560, y: 330 }, 0);
+      tl.fromTo(".w2", { y: 120, opacity: 0, rotate: 3, transformOrigin: "0% 100%" }, { y: 0, opacity: 1, rotate: 0, duration: 0.7, ease: "power4.out", stagger: 0.1 }, 5.3);
+      tl.fromTo(
+        "#w2",
+        { x: 260, y: 90, opacity: 0, rotateY: -16, rotateX: 6, transformPerspective: 1800, transformOrigin: "0% 50%" },
+        { x: 0, y: 0, opacity: 1, rotateY: 0, rotateX: 0, duration: 1.0, ease: "power4.out" },
+        5.25
+      );
+      const chipIn = (sel, t) => tl.fromTo(sel, { opacity: 0, x: -50, scale: 0.92, transformOrigin: "0% 50%" }, { opacity: 1, x: 0, scale: 1, duration: 0.55, ease: "back.out(1.5)" }, t);
+      chipIn("#chip1", 6.4);
+      chipIn("#chip2", 8.0);
+      chipIn("#chip3", 9.7);
+
+      // cursor choreography
+      tl.to("#cursor", { opacity: 1, duration: 0.25 }, 6.05);
+      tl.to("#cursor", { x: 1204, y: 658, duration: 0.95, ease: "power3.inOut" }, 6.1);
+      const click = (x, y, t, ripId) => {
+        tl.to("#cursor", { scale: 0.82, duration: 0.09, ease: "power2.in", transformOrigin: "6% 6%" }, t);
+        tl.to("#cursor", { scale: 1, duration: 0.18, ease: "back.out(2.5)", transformOrigin: "6% 6%" }, t + 0.09);
+        tl.set(ripId, { left: x - 50, top: y - 50 }, 0);
+        tl.fromTo(ripId, { scale: 0.2, opacity: 0.85 }, { scale: 2.6, opacity: 0, duration: 0.65, ease: "power2.out" }, t);
+      };
+      click(1204, 658, 7.15, "#rip1");
+      tl.to("#i2", { opacity: 1, duration: 0.28, ease: "power1.inOut" }, 7.3);
+      tl.to("#cursor", { x: 1525, y: 761, duration: 0.8, ease: "power3.inOut" }, 7.55);
+      click(1525, 761, 8.45, "#rip2");
+      tl.to("#i3", { opacity: 1, duration: 0.28, ease: "power1.inOut" }, 8.6);
+      tl.to("#cursor", { x: 1186, y: 619, duration: 0.7, ease: "power3.inOut" }, 8.95);
+      click(1186, 619, 9.7, "#rip3");
+      tl.to("#i4", { opacity: 1, duration: 0.2, ease: "power1.inOut" }, 9.82);
+      tl.to("#cursor", { opacity: 0, duration: 0.25 }, 10.3);
+
+      // zoom into the VAT lines
+      tl.to("#zo2", { scale: 1.85, duration: 0.95, ease: "power3.inOut", transformOrigin: "50% 50%" }, 10.45);
+      tl.to("#zi2", { x: -95, y: -166, duration: 0.95, ease: "power3.inOut" }, 10.45);
+      // VAT callout counts up
+      const vat = { v: 0 };
+      tl.fromTo("#vatpill", { opacity: 0, y: 40, scale: 0.9, transformOrigin: "0% 100%" }, { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "back.out(1.6)" }, 10.7);
+      tl.to(vat, { v: 200, duration: 0.9, ease: "power2.out", onUpdate: () => { document.getElementById("vatnum").textContent = "AED " + vat.v.toFixed(2); } }, 10.8);
+
+      /* =========================================================
+         SCENE 3  (12.5 - 19.5)  dashboard push-in with floating stats
+         ========================================================= */
+      tl.fromTo(".w3", { y: 150, opacity: 0, rotate: 3, transformOrigin: "0% 100%" }, { y: 0, opacity: 1, rotate: 0, duration: 0.7, ease: "power4.out", stagger: 0.12 }, 12.85);
+      tl.fromTo(
+        "#w3",
+        { y: 320, opacity: 0, rotateX: 22, transformPerspective: 1800, transformOrigin: "50% 100%" },
+        { y: 0, opacity: 1, rotateX: 0, duration: 1.05, ease: "power4.out" },
+        12.8
+      );
+      tl.fromTo("#cam3", { scale: 1, x: 0, y: 0, transformOrigin: "30% 35%" }, { scale: 1.1, x: -70, y: -150, duration: 6.4, ease: "sine.inOut" }, 13.2);
+      const pop = (sel, t) => tl.fromTo(sel, { opacity: 0, y: 60, scale: 0.88, transformOrigin: "0% 50%" }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "back.out(1.7)" }, t);
+      pop("#c3a", 14.0);
+      pop("#c3b", 14.9);
+      pop("#c3c", 15.8);
+      const n3a = { v: 0 }, n3b = { v: 0 }, n3c = { v: 0 };
+      const fmt0 = (n) => Math.round(n).toLocaleString("en-US");
+      const fmt2 = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      tl.to(n3a, { v: 9654.75, duration: 1.3, ease: "power3.out", onUpdate: () => { document.getElementById("n3a").textContent = "AED " + fmt2(n3a.v); } }, 14.1);
+      tl.to(n3b, { v: 100948.17, duration: 1.3, ease: "power3.out", onUpdate: () => { document.getElementById("n3b").textContent = "AED " + fmt2(n3b.v); } }, 15.0);
+      tl.to(n3c, { v: 10, duration: 1.0, ease: "power2.out", onUpdate: () => { document.getElementById("n3c").textContent = fmt0(n3c.v) + " days"; } }, 15.9);
+      // cards bob
+      ["#c3a", "#c3b", "#c3c"].forEach((s, i) => tl.to(s, { y: -10, duration: 1.6, ease: "sine.inOut", yoyo: true, repeat: 2 }, 15.2 + i * 0.25));
+
+      /* =========================================================
+         SCENE 4  (19.5 - 27)  VAT 201 highlights + equation
+         ========================================================= */
+      tl.fromTo(".w4", { y: 130, opacity: 0, rotate: 3, transformOrigin: "0% 100%" }, { y: 0, opacity: 1, rotate: 0, duration: 0.7, ease: "power4.out", stagger: 0.1 }, 19.85);
+      tl.fromTo(
+        "#w4",
+        { x: 260, y: 60, opacity: 0, rotateY: -16, transformPerspective: 1800, transformOrigin: "0% 50%" },
+        { x: 0, y: 0, opacity: 1, rotateY: 0, duration: 1.0, ease: "power4.out" },
+        19.8
+      );
+      tl.set([".hl"], { opacity: 0 }, 0);
+      // gentle zoom toward the totals
+      tl.to("#zo4", { scale: 1.25, duration: 1.1, ease: "power3.inOut", transformOrigin: "50% 50%" }, 21.0);
+      tl.to("#zi4", { x: -98, y: -63, duration: 1.1, ease: "power3.inOut" }, 21.0);
+      const hl = (sel, t) => {
+        tl.fromTo(sel, { opacity: 0, scaleX: 0.92, transformOrigin: "0% 50%" }, { opacity: 1, scaleX: 1, duration: 0.45, ease: "power3.out" }, t);
+      };
+      const rowIn = (sel, t) => tl.fromTo(sel, { opacity: 0, x: -50 }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, t);
+      const e1 = { v: 0 }, e2 = { v: 0 }, e3 = { v: 0 };
+      hl("#hl8", 21.6);
+      rowIn("#eq1", 21.7);
+      tl.to(e1, { v: 3335, duration: 1.0, ease: "power3.out", onUpdate: () => { document.getElementById("e1").textContent = fmt2(e1.v); } }, 21.8);
+      hl("#hl9", 23.1);
+      rowIn("#eq2", 23.2);
+      tl.to(e2, { v: 976.5, duration: 0.9, ease: "power3.out", onUpdate: () => { document.getElementById("e2").textContent = fmt2(e2.v); } }, 23.3);
+      hl("#hl14", 24.6);
+      rowIn("#eq3", 24.7);
+      tl.to(e3, { v: 2358.5, duration: 1.0, ease: "power3.out", onUpdate: () => { document.getElementById("e3").textContent = fmt2(e3.v); } }, 24.8);
+      tl.fromTo("#eq3 .v", { scale: 0.9, transformOrigin: "100% 50%" }, { scale: 1.08, duration: 0.45, ease: "back.out(2)", yoyo: true, repeat: 1 }, 25.0);
+      // highlights breathe
+      [".hl"].forEach((s) => tl.to(s, { borderColor: "#e9c8ff", duration: 0.7, ease: "sine.inOut", yoyo: true, repeat: 3 }, 25.2));
+
+      /* =========================================================
+         SCENE 5  (27 - 31.5)  montage of the rest of the app
+         ========================================================= */
+      tl.fromTo(".w5", { y: 140, opacity: 0, rotate: 4, transformOrigin: "0% 100%" }, { y: 0, opacity: 1, rotate: 0, duration: 0.6, ease: "power4.out", stagger: 0.18 }, 27.35);
+      const tiles = [
+        ["#t1", -34, 22, 27.45],
+        ["#t2", 34, 22, 27.6],
+        ["#t3", -34, -22, 27.75],
+        ["#t4", 34, -22, 27.9],
+      ];
+      tiles.forEach(([sel, ry, rx, t], i) => {
+        tl.fromTo(
+          sel,
+          { opacity: 0, rotateY: ry, rotateX: rx, y: 120, scale: 0.86, transformPerspective: 1500 },
+          { opacity: 1, rotateY: 0, rotateX: 0, y: 0, scale: 1, duration: 0.85, ease: "power4.out" },
+          t
+        );
+        tl.to(sel, { y: -9, duration: 1.4, ease: "sine.inOut", yoyo: true, repeat: 1 }, t + 0.9 + i * 0.1);
+      });
+
+      /* =========================================================
+         SCENE 6  (31.5 - 36)  close
+         ========================================================= */
+      tl.fromTo("#m6", { scale: 0.4, opacity: 0, transformOrigin: "50% 50%" }, { scale: 1, opacity: 1, duration: 0.85, ease: "back.out(1.8)" }, 31.85);
+      tl.fromTo(".q1", { scale: 0.6, opacity: 0.55 }, { scale: 2.8, opacity: 0, duration: 1.2, ease: "power2.out" }, 32.15);
+      tl.fromTo(".q2", { scale: 0.6, opacity: 0.45 }, { scale: 2.8, opacity: 0, duration: 1.2, ease: "power2.out" }, 32.4);
+      tl.fromTo("#wm6", { y: 80, opacity: 0, scale: 0.94, transformOrigin: "50% 50%" }, { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: "power4.out" }, 32.3);
+      tl.fromTo("#tag6", { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 32.85);
+      tl.fromTo("#cta6", { y: 60, opacity: 0, scale: 0.9, transformOrigin: "50% 50%" }, { y: 0, opacity: 1, scale: 1, duration: 0.7, ease: "back.out(1.6)" }, 33.35);
+      tl.to("#cta6", { scale: 1.04, duration: 0.7, ease: "sine.inOut", yoyo: true, repeat: 3, transformOrigin: "50% 50%" }, 34.2);
+      tl.to("#m6", { y: -14, duration: 1.4, ease: "sine.inOut", yoyo: true, repeat: 2 }, 33.0);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

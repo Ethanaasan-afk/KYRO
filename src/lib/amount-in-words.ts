@@ -48,35 +48,56 @@ function threeDigits(n: number): string {
   return `${ONES[h]} Hundred${rest ? " " + twoDigits(rest) : ""}`.trim();
 }
 
-/**
- * Convert amount to Indian currency words.
- * e.g. 4200 → "Rupees Four Thousand Two Hundred Only"
- * Supports up to crores; paise if fractional.
- */
-export function amountInWords(amount: number): string {
-  if (!Number.isFinite(amount) || amount < 0) return "Rupees Zero Only";
+interface CurrencyWords {
+  major: string;
+  minor: string;
+  /** Minor units per major unit (100 fils per dirham, 1000 fils per dinar) */
+  minorPerMajor: number;
+}
 
-  const rupees = Math.floor(amount);
-  const paise = Math.round((amount - rupees) * 100);
+const CURRENCY_WORDS: Record<string, CurrencyWords> = {
+  AED: { major: "UAE Dirhams", minor: "Fils", minorPerMajor: 100 },
+  SAR: { major: "Saudi Riyals", minor: "Halalas", minorPerMajor: 100 },
+  BHD: { major: "Bahraini Dinars", minor: "Fils", minorPerMajor: 1000 },
+  OMR: { major: "Omani Rials", minor: "Baisa", minorPerMajor: 1000 },
+  EUR: { major: "Euros", minor: "Cents", minorPerMajor: 100 },
+  GBP: { major: "Pounds Sterling", minor: "Pence", minorPerMajor: 100 },
+  USD: { major: "US Dollars", minor: "Cents", minorPerMajor: 100 },
+  /** Pre-VAT invoices were issued in rupees */
+  INR: { major: "Rupees", minor: "Paise", minorPerMajor: 100 },
+};
 
-  if (rupees === 0 && paise === 0) return "Rupees Zero Only";
-
-  const crore = Math.floor(rupees / 10000000);
-  const lakh = Math.floor((rupees % 10000000) / 100000);
-  const thousand = Math.floor((rupees % 100000) / 1000);
-  const hundred = rupees % 1000;
-
+function integerInWords(n: number): string {
+  if (n === 0) return "Zero";
+  const scales = ["", "Thousand", "Million", "Billion"];
   const parts: string[] = [];
-  if (crore) parts.push(`${threeDigits(crore)} Crore`);
-  if (lakh) parts.push(`${threeDigits(lakh)} Lakh`);
-  if (thousand) parts.push(`${threeDigits(thousand)} Thousand`);
-  if (hundred) parts.push(threeDigits(hundred));
-
-  let result = parts.length ? `Rupees ${parts.join(" ")}` : "Rupees Zero";
-
-  if (paise > 0) {
-    result += ` and ${twoDigits(paise)} Paise`;
+  let rest = n;
+  for (let i = 0; rest > 0 && i < scales.length; i++) {
+    const chunk = rest % 1000;
+    if (chunk) parts.unshift(`${threeDigits(chunk)}${scales[i] ? " " + scales[i] : ""}`);
+    rest = Math.floor(rest / 1000);
   }
+  return parts.join(" ");
+}
 
+/**
+ * Amount in words for the invoice footer.
+ * e.g. 4200.5 AED → "UAE Dirhams Four Thousand Two Hundred and Fifty Fils Only"
+ */
+export function amountInWords(amount: number, currency = "AED"): string {
+  const words = CURRENCY_WORDS[currency.toUpperCase()] ?? {
+    major: currency.toUpperCase(),
+    minor: "",
+    minorPerMajor: 100,
+  };
+  if (!Number.isFinite(amount) || amount < 0) return `${words.major} Zero Only`;
+
+  const major = Math.floor(amount);
+  const minor = Math.round((amount - major) * words.minorPerMajor);
+
+  let result = `${words.major} ${integerInWords(major)}`;
+  if (minor > 0 && words.minor) {
+    result += ` and ${integerInWords(minor)} ${words.minor}`;
+  }
   return `${result} Only`;
 }

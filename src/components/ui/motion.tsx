@@ -45,7 +45,7 @@ export function CountUp({
   const rounded = Number.isInteger(value) ? Math.round(display) : display;
   return (
     <span className={className}>
-      {format ? format(rounded) : rounded.toLocaleString("en-IN")}
+      {format ? format(rounded) : rounded.toLocaleString("en-AE")}
     </span>
   );
 }

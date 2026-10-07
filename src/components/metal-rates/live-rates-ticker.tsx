@@ -7,7 +7,7 @@ import {
   TICKER_SLOTS,
   type LiveRateChange,
 } from "@/lib/live-metal-rates";
-import { cn, formatINR } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { ArrowDownRight, ArrowUpRight, Gem } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -68,7 +68,7 @@ export function LiveRatesTicker() {
                 {item.label}
               </p>
               <p className="font-mono text-sm font-semibold text-ink">
-                {item.row ? formatINR(Number(item.row.rate_per_gram_inr)) : "-"}
+                {item.row ? formatCurrency(Number(item.row.rate_per_gram_inr)) : "-"}
                 <span className="ml-0.5 text-[10px] font-medium text-slate">/g</span>
               </p>
             </div>

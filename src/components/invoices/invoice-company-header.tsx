@@ -7,6 +7,7 @@ import {
 } from "@/lib/invoice-letterhead";
 import type { CompanySettings } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { getCountryConfig } from "@/lib/vat/countries";
 
 /**
  * Shared company letterhead for the on-screen invoice view.
@@ -24,7 +25,8 @@ export function InvoiceCompanyHeader({
     | "city"
     | "state"
     | "pincode"
-    | "gstin"
+    | "tax_id"
+    | "country"
     | "phone"
     | "email"
   >;
@@ -35,7 +37,8 @@ export function InvoiceCompanyHeader({
   const showLegal =
     Boolean(legalName) && legalName !== presentText(company.brand_name);
   const addressLine = formatCompanyAddress(company);
-  const contactLine = formatCompanyContact(company);
+  const country = getCountryConfig(company.country);
+  const contactLine = formatCompanyContact({ ...company, taxIdLabel: country.taxIdLabel });
 
   return (
     <div className={cn("min-w-0", className)}>
@@ -43,7 +46,7 @@ export function InvoiceCompanyHeader({
         {title}
       </p>
       <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">
-        Tax Invoice
+        {country.invoiceTitle}
       </p>
       {showLegal ? <p className="mt-1 text-sm text-ink">{legalName}</p> : null}
       {addressLine ? <p className="mt-1 text-xs text-slate">{addressLine}</p> : null}

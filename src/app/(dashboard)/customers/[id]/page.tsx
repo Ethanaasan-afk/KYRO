@@ -13,7 +13,7 @@ import { useInvoices } from "@/hooks/use-invoices";
 import { usePayments } from "@/hooks/use-payments";
 import { buildCustomerLedger } from "@/lib/customer-ledger";
 import { customerTypeLabel, PAYMENT_MODE_LABELS } from "@/lib/constants";
-import { formatDate, formatINR } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import {
   outstandingReminderMessage,
   whatsappShareUrl,
@@ -81,7 +81,7 @@ export default function CustomerDetailPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Udhaar / Ledger"
+        eyebrow="Credit / Ledger"
         title={customer.name}
         description={`${hideCustomerType ? "" : `${customerTypeLabel(customer.customer_type)} · `}${customer.state}${
           customer.phone ? ` · ${customer.phone}` : ""
@@ -119,7 +119,7 @@ export default function CustomerDetailPage() {
             Total billed
           </p>
           <p className="mt-1 font-display text-xl font-semibold text-ink tabular-nums">
-            {formatINR(summary.totalBilled)}
+            {formatCurrency(summary.totalBilled)}
           </p>
         </div>
         <div className="panel p-4">
@@ -127,7 +127,7 @@ export default function CustomerDetailPage() {
             Total paid
           </p>
           <p className="mt-1 font-display text-xl font-semibold text-ink tabular-nums">
-            {formatINR(summary.totalPaid)}
+            {formatCurrency(summary.totalPaid)}
           </p>
         </div>
         <div className="panel panel-accent-sun wash-sun p-4">
@@ -139,7 +139,7 @@ export default function CustomerDetailPage() {
               summary.outstanding > 0 ? "text-coral-deep" : "text-emerald"
             }`}
           >
-            {formatINR(summary.outstanding)}
+            {formatCurrency(summary.outstanding)}
           </p>
         </div>
       </div>
@@ -199,17 +199,17 @@ export default function CustomerDetailPage() {
                       )}
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums">
-                      {e.delta > 0 ? formatINR(e.delta) : "-"}
+                      {e.delta > 0 ? formatCurrency(e.delta) : "-"}
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-emerald">
-                      {e.delta < 0 ? formatINR(-e.delta) : "-"}
+                      {e.delta < 0 ? formatCurrency(-e.delta) : "-"}
                     </td>
                     <td
                       className={`px-5 py-2.5 text-right font-medium tabular-nums ${
                         e.runningBalance > 0 ? "text-coral-deep" : "text-emerald"
                       }`}
                     >
-                      {formatINR(e.runningBalance)}
+                      {formatCurrency(e.runningBalance)}
                     </td>
                   </tr>
                 ))}

@@ -1,3 +1,4 @@
+import { APP_NAME } from "@/lib/brand";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1
@@ -34,9 +35,9 @@ export function invoicePdfDownloadFilename(
   copyLabel?: string
 ): string {
   if (copyLabel && copyLabel !== "original") {
-    return `AasanBill Invoice - ${copyLabel}.pdf`;
+    return `${APP_NAME} Invoice - ${copyLabel}.pdf`;
   }
-  return "AasanBill Invoice.pdf";
+  return `${APP_NAME} Invoice.pdf`;
 }
 
 /** Prefer NEXT_PUBLIC_APP_URL (deployed domain). Avoid baking localhost into WhatsApp. */

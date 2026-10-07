@@ -18,8 +18,10 @@ import { useInvoiceMutations } from "@/hooks/use-invoices";
 import { findLatestRate, useMetalRates } from "@/hooks/use-metal-rates";
 import { useProducts } from "@/hooks/use-products";
 import { useWarehouses } from "@/hooks/use-warehouses";
-import { BUSINESS_STATE, customerTypeLabel } from "@/lib/constants";
-import { calcInvoiceTotals, isIntraState } from "@/lib/gst";
+import { customerTypeLabel } from "@/lib/constants";
+import { calcInvoiceTotals, normalizeVatCategory, type VatCategory } from "@/lib/vat";
+import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
+import { getCountryConfig } from "@/lib/vat/countries";
 import { bookingNights, isActiveBookingStatus } from "@/lib/hotel";
 import {
   calcJewelleryTaxable,
@@ -32,13 +34,73 @@ import {
 } from "@/lib/jewellery";
 import { productColor } from "@/lib/product-color";
 import type { Customer, Invoice, Product, RoomBooking } from "@/lib/types";
-import { formatDate, formatINR } from "@/lib/utils";
+import { cn, formatDate, formatCurrency } from "@/lib/utils";
 import { getNumberInputHandlers } from "@/lib/number-input";
-import { Plus, ScanBarcode, Trash2, UserPlus } from "lucide-react";
+import { formatQty, getUnit, roundQty, unitStep } from "@/lib/units";
+import { categoryPath } from "@/lib/categories";
+import { useCategoryTree } from "@/hooks/use-product-categories";
+import { LayoutGrid, Mail, Minus, Plus, ScanBarcode, Search, Trash2, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLiveMarketRates } from "@/hooks/use-live-market-rates";
+
+/** Quantity box with − / + nudges and the unit printed inside. */
+function QtyStepper({
+  value,
+  unit,
+  label,
+  onChange,
+}: {
+  value: number | string;
+  unit?: string | null;
+  label: string;
+  onChange: (next: number | string) => void;
+}) {
+  const u = getUnit(unit);
+  const n = Number(value) || 0;
+  const step = u.decimals > 0 ? (u.id === "g" || u.id === "ml" ? 50 : 0.5) : 1;
+  const bump = (dir: 1 | -1) => onChange(Math.max(0, roundQty(n + dir * step, u.id)));
+  return (
+    <div>
+      <label className="mb-1 block text-[10px] uppercase tracking-[0.05em] text-slate">{label}</label>
+      <div className="flex h-11 min-h-[44px] items-stretch overflow-hidden rounded-[8px] border border-border bg-surface focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+        <button
+          type="button"
+          onClick={() => bump(-1)}
+          disabled={n <= step}
+          className="flex w-9 shrink-0 items-center justify-center text-slate transition-colors hover:bg-cloud hover:text-ink disabled:opacity-30"
+          aria-label="Less"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <input
+          type="number"
+          min={0}
+          step={unitStep(u.id)}
+          inputMode={u.decimals > 0 ? "decimal" : "numeric"}
+          className="w-full min-w-0 bg-transparent text-center font-mono text-sm text-ink outline-none"
+          value={value}
+          {...getNumberInputHandlers({
+            onChange: (e) => onChange(e.target.value),
+            onBlur: (e) => {
+              if (e.target.value !== "") onChange(roundQty(Number(e.target.value), u.id));
+            },
+          })}
+        />
+        <span className="flex items-center pr-1 text-[11px] font-medium text-slate">{u.short}</span>
+        <button
+          type="button"
+          onClick={() => bump(1)}
+          className="flex w-9 shrink-0 items-center justify-center text-slate transition-colors hover:bg-cloud hover:text-ink"
+          aria-label="More"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 interface DraftLine {
   key: string;
@@ -50,7 +112,7 @@ interface DraftLine {
   imei_serial: string;
   batch_number: string;
   variant_tag: string;
-  /** Jewellery: rate ₹/g used for metal value (overridable) — locked at sale */
+  /** Jewellery: rate per gram used for metal value (overridable) — locked at sale */
   metal_rate_used: number | null;
   rate_locked_at_sale: number | null;
   rate_source: RateSource | null;
@@ -67,7 +129,9 @@ interface DraftLine {
   guest_id_proof: string;
   room_booking_id: string | null;
   booking_label: string;
-  gst_rate: number;
+  /** Hotel lines carry their own rate (no catalog product) */
+  vat_rate: number;
+  vat_category: VatCategory;
   hsn_code: string;
 }
 
@@ -97,7 +161,8 @@ function newLine(): DraftLine {
     guest_id_proof: "",
     room_booking_id: null,
     booking_label: "",
-    gst_rate: 0,
+    vat_rate: 0,
+    vat_category: "standard",
     hsn_code: "",
   };
 }
@@ -146,7 +211,8 @@ function linesFromInvoice(invoice: Invoice, products: Product[] | undefined): Dr
       guest_id_proof: it.guest_id_proof ?? "",
       room_booking_id: it.room_booking_id ?? null,
       booking_label: name,
-      gst_rate: Number(it.gst_rate) || 0,
+      vat_rate: Number(it.vat_rate) || 0,
+      vat_category: normalizeVatCategory(it.vat_category, Number(it.vat_rate)),
       hsn_code: it.hsn_code ?? "",
     };
   });
@@ -165,7 +231,7 @@ function LeaderRow({
 }: {
   label: string;
   value: string;
-  helpKey?: "cgst" | "sgst" | "igst";
+  helpKey?: "vat";
 }) {
   return (
     <div className="leader-row">
@@ -213,6 +279,15 @@ export function InvoiceForm({
     invoice?.invoice_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10)
   );
   const [notes, setNotes] = useState(invoice?.notes ?? "");
+  /** null = follow the organization default */
+  const [pricesIncludeVatChoice, setPricesIncludeVat] = useState<boolean | null>(
+    invoice ? !!invoice.prices_include_vat : null
+  );
+  const pricesIncludeVat = pricesIncludeVatChoice ?? !!company?.prices_include_vat;
+  // Editing keeps the document currency (pre-VAT invoices stay in INR)
+  const docCurrency = invoice?.currency ?? company?.currency;
+  const money = (n: number) => formatCurrency(n, docCurrency);
+  const taxIdLabel = getCountryConfig(company?.country).taxIdLabel;
   const [warehouseId, setWarehouseId] = useState(invoice?.warehouse_id ?? "");
   const [barcodeScan, setBarcodeScan] = useState("");
   const [bookingPick, setBookingPick] = useState("");
@@ -223,6 +298,12 @@ export function InvoiceForm({
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(mode === "create");
   const searchRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const { tree: categoryTree } = useCategoryTree();
+  const [quickCat, setQuickCat] = useState("");
+  const [quickSearch, setQuickSearch] = useState("");
+  const [showQuick, setShowQuick] = useState(true);
+  /** null = follow whether the customer has an email address */
+  const [emailAfterChoice, setEmailAfter] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (mode !== "edit" || !invoice || hydrated) return;
@@ -242,6 +323,32 @@ export function InvoiceForm({
   }, [warehouses, warehouseId]);
 
   const selectedCustomer = customers?.find((c) => c.id === customerId) ?? null;
+  const customerEmail = selectedCustomer?.email?.trim() || "";
+  const emailAfter = emailAfterChoice ?? !!customerEmail;
+
+  // Quick-pick catalog: categories that hold active products, then the tiles
+  const quickCats = useMemo(() => {
+    const list = products ?? [];
+    return categoryTree
+      .map((n) => ({
+        name: n.name,
+        count: list.filter((p) => p.category.toLowerCase() === n.name.toLowerCase()).length,
+      }))
+      .filter((c) => c.count > 0);
+  }, [categoryTree, products]);
+  const quickProducts = useMemo(() => {
+    const q = quickSearch.trim().toLowerCase();
+    return (products ?? [])
+      .filter((p) => !quickCat || p.category.toLowerCase() === quickCat.toLowerCase())
+      .filter(
+        (p) =>
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          (p.subcategory ?? "").toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q)
+      )
+      .slice(0, 18);
+  }, [products, quickCat, quickSearch]);
 
   const billableBookings = useMemo(() => {
     const used = new Set(lines.map((l) => l.room_booking_id).filter(Boolean));
@@ -261,7 +368,7 @@ export function InvoiceForm({
           !q ||
           c.name.toLowerCase().includes(q) ||
           (c.phone ?? "").includes(q) ||
-          (c.gstin ?? "").toLowerCase().includes(q)
+          (c.tax_id ?? "").toLowerCase().includes(q)
       )
       .slice(0, 8);
   }, [customers, customerSearch]);
@@ -274,11 +381,12 @@ export function InvoiceForm({
       valid.map((l) => ({
         quantity: Number(l.quantity),
         unitPrice: Number(l.unit_price),
-        gstRate: hotelStay ? l.gst_rate : l.product!.gst_rate,
+        vatRate: hotelStay ? l.vat_rate : l.product!.vat_rate,
+        vatCategory: hotelStay ? l.vat_category : l.product!.vat_category,
       })),
-      selectedCustomer.state
+      { pricesIncludeVat }
     );
-  }, [lines, selectedCustomer, hotelStay]);
+  }, [lines, selectedCustomer, hotelStay, pricesIncludeVat]);
 
   const pickProduct = (key: string, product: Product) => {
     const jewellery = lineFields.jewelleryPricing && isJewelleryProduct(product);
@@ -350,7 +458,8 @@ export function InvoiceForm({
       quantity: nights,
       unit_price: Number(type?.base_price ?? 0),
       price_overridden: false,
-      gst_rate: Number(type?.gst_rate ?? 12),
+      vat_rate: Number(type?.vat_rate ?? getCountryConfig(company?.country).standardRate),
+      vat_category: "standard",
       hsn_code: type?.sac_code ?? "",
       check_in_date: booking.check_in_date,
       check_out_date: booking.check_out_date,
@@ -443,6 +552,30 @@ export function InvoiceForm({
     }
   };
 
+  /** Tap a tile: bump the line if it is already on the bill, else fill/append a line. */
+  const addFromCatalog = (product: Product) => {
+    const jewellery = lineFields.jewelleryPricing && isJewelleryProduct(product);
+    const existing = !jewellery ? lines.find((l) => l.product?.id === product.id) : undefined;
+    if (existing) {
+      setLines((prev) =>
+        prev.map((l) =>
+          l.key === existing.key
+            ? { ...l, quantity: roundQty(Number(l.quantity) + 1, product.unit) }
+            : l
+        )
+      );
+      return;
+    }
+    const empty = lines.find((l) => !l.product && !l.room_booking_id);
+    if (empty) {
+      pickProduct(empty.key, product);
+      return;
+    }
+    const line = newLine();
+    setLines((prev) => [...prev, line]);
+    pickProduct(line.key, product);
+  };
+
   const goNext = () => {
     setError("");
     if (step === 1 && !customerId) {
@@ -491,7 +624,8 @@ export function InvoiceForm({
           unit_price: Number(l.unit_price),
           price_overridden: l.price_overridden,
           hsn_code: l.hsn_code || null,
-          gst_rate: l.gst_rate,
+          vat_rate: l.vat_rate,
+          vat_category: l.vat_category,
           check_in_date: l.check_in_date || null,
           check_out_date: l.check_out_date || null,
           guest_id_proof: l.guest_id_proof || null,
@@ -501,7 +635,8 @@ export function InvoiceForm({
         lineFields.jewelleryPricing && isJewelleryProduct(l.product);
       return {
         product_id: l.product!.id,
-        quantity: Number(l.quantity),
+        quantity: roundQty(Number(l.quantity), l.product!.unit),
+        unit: l.product!.unit ?? "pcs",
         unit_price: Number(l.unit_price),
         price_overridden: l.price_overridden,
         imei_serial: lineFields.lineImeiSerial ? l.imei_serial || null : null,
@@ -538,6 +673,7 @@ export function InvoiceForm({
           warehouse_id: warehouseId || null,
           user_id: user.id,
           force,
+          prices_include_vat: pricesIncludeVat,
           items,
         });
         toast(`Done! ${invoice.invoice_number} is updated.`);
@@ -549,14 +685,15 @@ export function InvoiceForm({
           notes: notes || undefined,
           warehouse_id: warehouseId || null,
           user_id: user.id,
-          prefix: company?.invoice_prefix ?? "AB",
+          prefix: company?.invoice_prefix ?? DEFAULT_INVOICE_PREFIX,
+          prices_include_vat: pricesIncludeVat,
           items,
         });
         toast(`Done! Invoice ${created.invoice_number} is ready.`);
         if (!created.id) {
           throw new Error("Create succeeded but no invoice id was returned");
         }
-        router.push(`/invoices/${created.id}`);
+        router.push(`/invoices/${created.id}${emailAfter ? "?send=email" : "?created=1"}`);
       }
     } catch (e) {
       const msg = (e as Error).message || "Something went wrong";
@@ -568,7 +705,6 @@ export function InvoiceForm({
     }
   };
 
-  const intra = selectedCustomer ? isIntraState(selectedCustomer.state) : true;
   const saving = create.isPending || update.isPending;
   const cancelHref = mode === "edit" && invoice ? `/invoices/${invoice.id}` : "/invoices";
   const validLines = lines.filter((l) => isValidDraftLine(l, hotelStay));
@@ -622,7 +758,7 @@ export function InvoiceForm({
           <div className="relative mt-2">
             <input
               className="h-11 min-h-[44px] w-full rounded-[10px] border border-border bg-surface px-3 text-sm text-ink placeholder:text-slate-dim focus:border-emerald focus:outline-none"
-              placeholder="Search by name, phone, or GSTIN…"
+              placeholder={`Search by name, phone, or ${taxIdLabel}…`}
               value={selectedCustomer ? selectedCustomer.name : customerSearch}
               onChange={(e) => {
                 setCustomerId("");
@@ -648,7 +784,7 @@ export function InvoiceForm({
                     <span className="text-xs text-slate">
                       {c.state}
                       {!hideCustomerType && ` · ${customerTypeLabel(c.customer_type)}`}
-                      {c.gstin ? ` · ${c.gstin}` : ""}
+                      {c.tax_id ? ` · ${taxIdLabel} ${c.tax_id}` : ""}
                     </span>
                   </button>
                 ))}
@@ -662,18 +798,15 @@ export function InvoiceForm({
           </div>
           {selectedCustomer && (
             <p className="mt-3 text-sm text-slate">
-              {selectedCustomer.state} -{" "}
-              {intra ? (
-                <span className="inline-flex items-center gap-1 text-emerald">
-                  Same state (CGST + SGST) <HelpTip helpKey="cgst" />
+              {selectedCustomer.state || "-"}
+              {" · "}
+              {selectedCustomer.tax_id ? (
+                <span className="text-emerald">
+                  VAT registered ({taxIdLabel} {selectedCustomer.tax_id})
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-brass">
-                  Different state (IGST) <HelpTip helpKey="igst" />
-                </span>
+                <span>Not VAT registered</span>
               )}
-              {" · "}
-              Your business state: {BUSINESS_STATE}
             </p>
           )}
           {error && <p className="mt-3 text-sm text-rose">{error}</p>}
@@ -741,7 +874,7 @@ export function InvoiceForm({
                   <p className="mt-1 text-sm font-medium text-ink">{line.booking_label}</p>
                   <p className="mt-0.5 font-mono text-xs text-slate">
                     {formatDate(line.check_in_date)} → {formatDate(line.check_out_date)}
-                    {line.hsn_code ? ` · SAC ${line.hsn_code}` : ""}
+                    {line.vat_rate ? ` · VAT ${line.vat_rate}%` : ""}
                   </p>
                 </div>
                 <div className="sm:col-span-2">
@@ -802,7 +935,7 @@ export function InvoiceForm({
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.05em] text-slate">Line</p>
                     <p className="font-mono text-sm font-medium text-ink">
-                      {formatINR(Number(line.quantity) * Number(line.unit_price))}
+                      {money(Number(line.quantity) * Number(line.unit_price))}
                     </p>
                   </div>
                   <Button
@@ -882,7 +1015,92 @@ export function InvoiceForm({
             <Button variant="secondary" onClick={() => setLines((p) => [...p, newLine()])}>
               <Plus className="h-4 w-4" /> Add another {labels.product.toLowerCase()}
             </Button>
+            {(products ?? []).length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowQuick((v) => !v)}
+                className="ml-auto inline-flex h-11 items-center gap-1.5 rounded-[10px] px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                {showQuick ? "Hide catalog" : "Tap to add"}
+              </button>
+            )}
           </div>
+
+          {showQuick && (products ?? []).length > 0 && (
+            <div className="mt-4 rounded-[12px] border border-border bg-cloud/60 p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+                  {[{ name: "", count: (products ?? []).length }, ...quickCats].map((c) => (
+                    <button
+                      key={c.name || "all"}
+                      type="button"
+                      onClick={() => setQuickCat(c.name)}
+                      className={cn(
+                        "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all",
+                        quickCat === c.name
+                          ? "border-primary bg-primary text-white"
+                          : "border-border bg-surface text-slate hover:text-ink"
+                      )}
+                    >
+                      {c.name || "All"} <span className="opacity-60">{c.count}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="relative sm:w-48">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-dim" />
+                  <input
+                    value={quickSearch}
+                    onChange={(e) => setQuickSearch(e.target.value)}
+                    placeholder="Filter…"
+                    className="h-9 w-full rounded-[8px] border border-border bg-surface pl-8 pr-2 text-sm text-ink outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {quickProducts.map((p) => {
+                  const inBill = lines
+                    .filter((l) => l.product?.id === p.id)
+                    .reduce((sum, l) => sum + Number(l.quantity || 0), 0);
+                  const stock = Number(p.current_stock ?? 0);
+                  const low = !p.is_service && stock <= Number(p.reorder_threshold ?? 0);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addFromCatalog(p)}
+                      className={cn(
+                        "group relative flex min-h-[64px] flex-col items-start rounded-[10px] border bg-surface p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98]",
+                        inBill > 0 ? "border-primary/50 ring-2 ring-primary/15" : "border-border"
+                      )}
+                    >
+                      <span className="flex w-full items-start gap-1.5">
+                        <ProductSwatch productId={p.id} className="mt-1 shrink-0" />
+                        <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-ink">
+                          {p.name}
+                          {p.variant ? <span className="font-normal text-slate"> · {p.variant}</span> : null}
+                        </span>
+                      </span>
+                      <span className="mt-1 font-mono text-[11px] text-slate">
+                        {money(p.base_price)} / {getUnit(p.unit).short}
+                        {!p.is_service && (
+                          <span className={cn("ml-1", low ? "text-rose" : "")}>· {formatQty(stock, p.unit)}</span>
+                        )}
+                      </span>
+                      {inBill > 0 && (
+                        <span className="absolute -right-1.5 -top-1.5 rounded-full bg-primary px-1.5 py-0.5 font-mono text-[10px] font-bold text-white shadow">
+                          {formatQty(inBill, p.unit, false)}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {!quickProducts.length && (
+                  <p className="col-span-full py-4 text-center text-sm text-slate">Nothing matches that filter.</p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 space-y-3">
             {lines.map((line) => (
@@ -927,53 +1145,50 @@ export function InvoiceForm({
                           className="flex w-full justify-between px-3 py-2.5 text-left text-sm hover:bg-surface-hover"
                           onClick={() => pickProduct(line.key, p)}
                         >
-                          <span className="inline-flex items-center gap-2 text-ink">
+                          <span className="inline-flex min-w-0 items-center gap-2 text-ink">
                             <ProductSwatch productId={p.id} />
-                            {p.name}
-                            {p.variant ? ` (${p.variant})` : ""} · {p.pack_size}
+                            <span className="min-w-0">
+                              <span className="block truncate">
+                                {p.name}
+                                {p.variant ? ` (${p.variant})` : ""}
+                              </span>
+                              <span className="block truncate text-[11px] text-slate">
+                                {categoryPath(p.category, p.subcategory)}
+                              </span>
+                            </span>
                           </span>
-                          <span className="font-mono text-xs text-slate">
-                            {formatINR(p.base_price)}
-                            {lineFields.hotelStay
-                              ? " / night"
-                              : ` · stk ${p.current_stock ?? 0}`}
+                          <span className="shrink-0 pl-2 text-right font-mono text-xs text-slate">
+                            {money(p.base_price)} / {getUnit(p.unit).short}
+                            {!lineFields.hotelStay && !p.is_service && (
+                              <span className="block text-[11px]">{formatQty(p.current_stock ?? 0, p.unit)} left</span>
+                            )}
                           </span>
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="mb-1 block text-[10px] uppercase tracking-[0.05em] text-slate">
-                    {labels.quantity}
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    className="h-11 min-h-[44px] w-full rounded-[8px] border border-border bg-surface px-2 font-mono text-sm text-ink focus:border-emerald focus:outline-none"
+                <div className="sm:col-span-3">
+                  <QtyStepper
+                    label={labels.quantity}
+                    unit={line.product?.unit}
                     value={line.quantity}
-                    {...getNumberInputHandlers({
-                      onChange: (e) =>
-                        setLines((prev) =>
-                          prev.map((l) =>
-                            l.key === line.key
-                              ? {
-                                  ...l,
-                                  quantity: e.target.value,
-                                }
-                              : l
-                          )
-                        ),
-                    })}
+                    onChange={(next) =>
+                      setLines((prev) =>
+                        prev.map((l) => (l.key === line.key ? { ...l, quantity: next } : l))
+                      )
+                    }
                   />
                 </div>
-                <div className="sm:col-span-3">
+                <div className="sm:col-span-2">
                   <label className="mb-1 block text-[10px] uppercase tracking-[0.05em] text-slate">
                     {lineFields.jewelleryPricing && isJewelleryProduct(line.product)
                       ? "Rate / g"
                       : lineFields.hotelStay
                         ? "Rate / night"
-                        : "Rate"}{" "}
+                        : line.product
+                          ? `Rate / ${getUnit(line.product.unit).short}`
+                          : "Rate"}{" "}
                     {line.price_overridden && <span className="text-brass">(override)</span>}
                   </label>
                   <input
@@ -1062,7 +1277,7 @@ export function InvoiceForm({
                     </p>
                     <p className="font-mono text-sm font-medium text-ink">
                       {line.product
-                        ? formatINR(Number(line.quantity) * Number(line.unit_price))
+                        ? money(Number(line.quantity) * Number(line.unit_price))
                         : "-"}
                     </p>
                   </div>
@@ -1076,13 +1291,13 @@ export function InvoiceForm({
                 </div>
                 {lineFields.jewelleryPricing && isJewelleryProduct(line.product) && (
                   <div className="sm:col-span-12 rounded-[8px] border border-border/80 bg-surface px-3 py-2 font-mono text-[11px] text-slate">
-                    Locked rate {formatINR(line.rate_locked_at_sale ?? line.metal_rate_used ?? 0)}
+                    Locked rate {money(line.rate_locked_at_sale ?? line.metal_rate_used ?? 0)}
                     /g
                     {line.rate_source ? ` · ${line.rate_source}` : ""} ·{" "}
                     {formatPurityLabel(line.jewellery_purity)} ·{" "}
                     {line.net_weight ?? 0} g ×{" "}
-                    {formatINR(line.metal_rate_used ?? 0)}/g = Metal{" "}
-                    {formatINR(
+                    {money(line.metal_rate_used ?? 0)}/g = Metal{" "}
+                    {money(
                       calcJewelleryTaxable({
                         netWeight: Number(line.net_weight) || 0,
                         ratePerGram: Number(line.metal_rate_used) || 0,
@@ -1091,11 +1306,11 @@ export function InvoiceForm({
                         stoneValue: 0,
                       }).metalValue
                     )}{" "}
-                    + Making {formatINR(line.making_charge_amount ?? 0)}
+                    + Making {money(line.making_charge_amount ?? 0)}
                     {(line.wastage_amount ?? 0) > 0
-                      ? ` + Wastage ${formatINR(line.wastage_amount ?? 0)}`
+                      ? ` + Wastage ${money(line.wastage_amount ?? 0)}`
                       : ""}{" "}
-                    + Stone {formatINR(line.stone_value ?? 0)}
+                    + Stone {money(line.stone_value ?? 0)}
                     {line.jewellery_huid ? ` · HUID ${line.jewellery_huid}` : ""}
                   </div>
                 )}
@@ -1112,7 +1327,7 @@ export function InvoiceForm({
                         <input
                           className="h-11 min-h-[44px] w-full rounded-[8px] border border-border bg-surface px-2 font-mono text-sm text-ink focus:border-emerald focus:outline-none"
                           value={line.imei_serial}
-                          placeholder="15-digit IMEI / serial"
+                          placeholder={labels.lineImeiSerialPlaceholder}
                           onChange={(e) =>
                             setLines((prev) =>
                               prev.map((l) =>
@@ -1158,7 +1373,7 @@ export function InvoiceForm({
                         <input
                           className="h-11 min-h-[44px] w-full rounded-[8px] border border-border bg-surface px-2 text-sm text-ink focus:border-emerald focus:outline-none"
                           value={line.variant_tag}
-                          placeholder="Size: L, Color: Red"
+                          placeholder={labels.lineVariantTagPlaceholder}
                           onChange={(e) =>
                             setLines((prev) =>
                               prev.map((l) =>
@@ -1174,6 +1389,15 @@ export function InvoiceForm({
               </div>
             ))}
           </div>
+
+          {totals && (
+            <div className="mt-3 flex items-center justify-between rounded-[10px] bg-primary-soft px-4 py-2.5 text-sm">
+              <span className="text-slate">
+                {validLines.length} item{validLines.length === 1 ? "" : "s"} · VAT {money(totals.totalVat)}
+              </span>
+              <span className="font-mono font-semibold text-ink">{money(totals.grandTotal)}</span>
+            </div>
+          )}
 
           <div className="mt-4">
             <Input
@@ -1234,35 +1458,55 @@ export function InvoiceForm({
                 <li key={l.key}>
                   {hotelStay
                     ? `${l.booking_label} × ${l.quantity} night(s)`
-                    : `${l.product?.name} × ${l.quantity}`}{" "}
-                  - {formatINR(Number(l.quantity) * Number(l.unit_price))}
+                    : `${l.product?.name} × ${formatQty(l.quantity, l.product?.unit)}`}{" "}
+                  - {money(Number(l.quantity) * Number(l.unit_price))}
                 </li>
               ))}
             </ul>
           </div>
 
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[10px] border border-border bg-surface p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+              checked={pricesIncludeVat}
+              onChange={(e) => setPricesIncludeVat(e.target.checked)}
+            />
+            <span>
+              <span className="inline-flex items-center gap-1 font-medium text-ink">
+                Prices include VAT <HelpTip helpKey="prices_include_vat" />
+              </span>
+              <span className="block text-xs text-slate">
+                {pricesIncludeVat
+                  ? "VAT is worked out from the prices you entered."
+                  : "VAT is added on top of the prices you entered."}
+              </span>
+            </span>
+          </label>
+
           {totals ? (
             <div className="mt-5 space-y-2.5">
-              <LeaderRow label="Subtotal" value={formatINR(totals.subtotal)} />
-              {intra ? (
-                <>
-                  <LeaderRow label="CGST" value={formatINR(totals.totalCgst)} helpKey="cgst" />
-                  <LeaderRow label="SGST" value={formatINR(totals.totalSgst)} helpKey="sgst" />
-                </>
-              ) : (
-                <LeaderRow label="IGST" value={formatINR(totals.totalIgst)} helpKey="igst" />
-              )}
-              <LeaderRow
-                label="Round off"
-                value={`${totals.roundOff >= 0 ? "+" : ""}${formatINR(totals.roundOff)}`}
-              />
+              <LeaderRow label="Taxable amount" value={money(totals.subtotal)} />
+              {totals.breakdown.map((b) => (
+                <LeaderRow
+                  key={`${b.vatCategory}-${b.vatRate}`}
+                  label={
+                    b.vatCategory === "standard"
+                      ? `VAT ${b.vatRate}% on ${money(b.taxableValue)}`
+                      : `${b.vatCategory === "zero" ? "Zero-rated" : "Exempt"} ${money(b.taxableValue)}`
+                  }
+                  value={money(b.vatAmount)}
+                  helpKey={b.vatCategory === "standard" ? "vat" : undefined}
+                />
+              ))}
+              <LeaderRow label="Total VAT" value={money(totals.totalVat)} />
               <div className="mt-3 rounded-[10px] border border-sage bg-sage-soft px-3 py-3">
                 <div className="flex items-end justify-between gap-3">
                   <span className="font-display text-xs font-semibold uppercase tracking-[0.06em] text-sage">
-                    Grand Total
+                    Total (incl. VAT)
                   </span>
                   <span className="font-display text-2xl font-semibold tracking-tight text-sage">
-                    <span className="font-mono">{formatINR(totals.grandTotal)}</span>
+                    <span className="font-mono">{money(totals.grandTotal)}</span>
                   </span>
                 </div>
               </div>
@@ -1304,10 +1548,36 @@ export function InvoiceForm({
             <p>
               <span className="text-slate">Total:</span>{" "}
               <span className="font-mono font-semibold text-ink">
-                {totals ? formatINR(totals.grandTotal) : "-"}
+                {totals ? money(totals.grandTotal) : "-"}
               </span>
             </p>
           </div>
+
+          {mode === "create" && (
+            <label
+              className={cn(
+                "mt-4 flex cursor-pointer items-start gap-3 rounded-[10px] border p-3 text-sm transition-colors",
+                emailAfter ? "border-primary/40 bg-primary-soft" : "border-border bg-surface"
+              )}
+            >
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+                checked={emailAfter}
+                onChange={(e) => setEmailAfter(e.target.checked)}
+              />
+              <span className="min-w-0">
+                <span className="inline-flex items-center gap-1.5 font-medium text-ink">
+                  <Mail className="h-4 w-4 text-primary" /> Email it to the customer
+                </span>
+                <span className="block text-xs text-slate">
+                  {customerEmail
+                    ? `We'll open a ready-to-send email to ${customerEmail} with the PDF attached.`
+                    : "No email on file - you can type one in before sending."}
+                </span>
+              </span>
+            </label>
+          )}
 
           {error && <p className="mt-3 text-sm text-rose">{error}</p>}
 

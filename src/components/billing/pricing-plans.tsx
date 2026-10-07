@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  formatInr,
+  formatPlanPrice,
   getPlanChecklist,
   getPlanPrice,
   PAID_PLAN_ORDER,
@@ -164,7 +164,7 @@ function PlanCard({
       className={cn(
         "relative flex h-full flex-col overflow-hidden rounded-[16px] border bg-surface p-5 shadow-card sm:p-6",
         popular
-          ? "border-primary/40 bg-primary-soft shadow-[0_8px_28px_rgba(29,78,216,0.10)]"
+          ? "border-primary/40 bg-primary-soft shadow-[0_8px_28px_rgba(124,28,240,0.10)]"
           : "border-border"
       )}
     >
@@ -196,17 +196,17 @@ function PlanCard({
         <div className="flex flex-wrap items-baseline gap-2">
           {price.compareAt != null ? (
             <span className="font-mono text-sm text-slate-dim line-through">
-              {formatInr(price.compareAt)}
+              {formatPlanPrice(price.compareAt)}
             </span>
           ) : null}
           <span className="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-            {formatInr(price.price)}
+            {formatPlanPrice(price.price)}
           </span>
           <span className="text-sm font-medium text-slate">{price.periodSuffix}</span>
         </div>
         <p className="mt-1.5 text-sm text-slate">
           Only{" "}
-          <span className="font-semibold text-ink">{formatInr(price.perMonth)}</span> per month
+          <span className="font-semibold text-ink">{formatPlanPrice(price.perMonth)}</span> per month
         </p>
       </div>
 

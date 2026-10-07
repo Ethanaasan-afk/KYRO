@@ -11,7 +11,7 @@ import { useToast } from "@/components/ui/toast";
 import { useCreditNoteMutations, useCreditNotes } from "@/hooks/use-credit-notes";
 import { useInvoice, useInvoices } from "@/hooks/use-invoices";
 import { useOrgAccess } from "@/hooks/use-org-access";
-import { formatDate, formatINR } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { getNumberInputHandlers } from "@/lib/number-input";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -124,7 +124,7 @@ export default function CreditNotesPage() {
               placeholder="Select invoice…"
               options={eligible.map((inv) => ({
                 value: inv.id,
-                label: `${inv.invoice_number} - ${inv.customer?.name ?? ""} (${formatINR(inv.grand_total)})`,
+                label: `${inv.invoice_number} - ${inv.customer?.name ?? ""} (${formatCurrency(inv.grand_total)})`,
               }))}
             />
             <Input
@@ -160,6 +160,7 @@ export default function CreditNotesPage() {
                         <input
                           type="number"
                           min={0}
+                          step="any"
                           max={it.quantity}
                           className="h-9 w-20 rounded-lg border border-border bg-surface px-2 text-right text-sm"
                           value={it.product_id ? qtys[it.product_id] ?? "" : ""}
@@ -170,7 +171,7 @@ export default function CreditNotesPage() {
                           })}
                         />
                       </td>
-                      <td className="num">{formatINR(it.unit_price)}</td>
+                      <td className="num">{formatCurrency(it.unit_price)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -222,7 +223,7 @@ export default function CreditNotesPage() {
                     {n.invoice?.invoice_number ?? "-"}
                   </td>
                   <td>{n.customer?.name ?? "-"}</td>
-                  <td className="num">{formatINR(n.grand_total)}</td>
+                  <td className="num">{formatCurrency(n.grand_total)}</td>
                   <td>
                     <Badge variant={n.status === "issued" ? "info" : "danger"}>
                       {n.status}

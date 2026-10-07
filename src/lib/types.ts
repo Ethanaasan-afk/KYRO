@@ -8,6 +8,7 @@ import type {
   UserRole,
 } from "./constants";
 import type { BusinessType } from "./business-types";
+import type { VatCategory } from "./vat";
 
 export interface AppUser {
   id: string;
@@ -23,8 +24,18 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  gstin: string | null;
+  /** VAT registration number (UAE TRN) */
+  tax_id: string | null;
+  /** @deprecated India GSTIN, history only */
+  gstin?: string | null;
+  /** ISO country code of the VAT registration */
+  country: string;
+  /** ISO currency code used for new documents */
+  currency: string;
+  /** Default for new invoices: entered prices already include VAT */
+  prices_include_vat: boolean;
   address: string | null;
+  /** Emirate / region */
   state: string;
   bank_details: string | null;
   logo_url: string | null;
@@ -34,14 +45,18 @@ export interface Organization {
   created_at: string;
   brand_name: string;
   city: string;
+  /** P.O. Box / postal code */
   pincode: string;
   phone: string;
   email: string;
   bank_name: string;
+  /** IBAN (or account number) */
   bank_account: string;
+  /** SWIFT / BIC (column name predates VAT) */
   bank_ifsc: string;
   bank_branch: string;
   invoice_prefix: string;
+  /** @deprecated India UPI, no longer shown */
   upi_id: string;
   updated_at: string;
   /** Public URL of authorized signatory image (org-scoped storage). */
@@ -52,6 +67,13 @@ export interface Organization {
   razorpay_subscription_id?: string | null;
   current_period_end?: string | null;
   cancel_at_period_end?: boolean;
+  /** Email: default subject / message for invoice emails ({placeholders} allowed) */
+  email_subject_template?: string | null;
+  email_body_template?: string | null;
+  /** Email: send a blind copy to the organization email */
+  email_bcc_self?: boolean;
+  /** Dashboard: monthly sales target in the organization currency */
+  monthly_sales_goal?: number | null;
 }
 
 export interface BillingEvent {
@@ -71,20 +93,26 @@ export interface CompanySettings {
   id: string;
   company_name: string;
   brand_name: string;
-  gstin: string;
+  /** VAT registration number (UAE TRN) */
+  tax_id: string;
+  country: string;
+  currency: string;
+  prices_include_vat: boolean;
   address: string;
   city: string;
+  /** Emirate / region */
   state: string;
+  /** P.O. Box / postal code */
   pincode: string;
   phone: string;
   email: string;
   bank_name: string;
+  /** IBAN */
   bank_account: string;
-  bank_ifsc: string;
+  /** SWIFT / BIC */
+  bank_swift: string;
   bank_branch: string;
   invoice_prefix: string;
-  /** UPI VPA for customer payments, e.g. business@upi */
-  upi_id?: string;
   /** Authorized signatory image URL (org upload). */
   signature_url?: string | null;
   updated_at: string;
@@ -113,8 +141,11 @@ export interface Supplier {
   name: string;
   phone: string | null;
   email: string | null;
-  gstin: string | null;
+  /** Supplier VAT registration number */
+  tax_id: string | null;
+  country: string;
   address: string | null;
+  /** Emirate / region */
   state: string;
   notes: string | null;
   is_active: boolean;
@@ -130,10 +161,8 @@ export interface PurchaseItem {
   quantity: number;
   unit_cost: number;
   taxable_value: number;
-  gst_rate: number;
-  cgst_amount: number;
-  sgst_amount: number;
-  igst_amount: number;
+  vat_rate: number;
+  vat_amount: number;
   line_total: number;
   batch_number: string | null;
   mfg_date: string | null;
@@ -148,11 +177,11 @@ export interface Purchase {
   warehouse_id: string | null;
   purchase_date: string;
   subtotal: number;
-  total_cgst: number;
-  total_sgst: number;
-  total_igst: number;
+  total_vat: number;
   round_off: number;
   grand_total: number;
+  /** ISO currency the document was issued in (pre-VAT documents are INR) */
+  currency: string;
   status: "received" | "cancelled";
   notes: string | null;
   created_by: string | null;
@@ -171,10 +200,8 @@ export interface CreditNoteItem {
   quantity: number;
   unit_price: number;
   taxable_value: number;
-  gst_rate: number;
-  cgst_amount: number;
-  sgst_amount: number;
-  igst_amount: number;
+  vat_rate: number;
+  vat_amount: number;
   line_total: number;
   product?: Product;
 }
@@ -187,11 +214,11 @@ export interface CreditNote {
   warehouse_id: string | null;
   credit_date: string;
   subtotal: number;
-  total_cgst: number;
-  total_sgst: number;
-  total_igst: number;
+  total_vat: number;
   round_off: number;
   grand_total: number;
+  /** ISO currency the document was issued in (pre-VAT documents are INR) */
+  currency: string;
   reason: string | null;
   status: "issued" | "cancelled";
   created_by: string | null;
@@ -207,19 +234,25 @@ export interface Product {
   organization_id?: string;
   name: string;
   category: string;
+  /** Optional subcategory inside `category` */
+  subcategory?: string | null;
   variant: string | null;
+  /** Unit the price is per (pcs, kg, l, m, box, hour...) - see lib/units */
+  unit?: string;
   sku: string;
   /** Optional barcode / EAN for scanner billing */
   barcode?: string | null;
   pack_size: string;
+  /** Optional item / tariff code (legacy HSN column) */
   hsn_code: string;
   base_price: number;
   /**
-   * Internal quick-reference unit cost. Not used for invoices, GST, or customer pricing.
+   * Internal quick-reference unit cost. Not used for invoices, VAT, or customer pricing.
    * Detailed cost history lives in Business Data → Product Costs.
    */
   manufacturing_cost?: number | null;
-  gst_rate: number;
+  vat_rate: number;
+  vat_category: VatCategory;
   reorder_threshold: number;
   is_active: boolean;
   image_url: string | null;
@@ -285,8 +318,11 @@ export interface Customer {
   phone: string | null;
   email: string | null;
   billing_address: string | null;
+  /** Emirate / region */
   state: string;
-  gstin: string | null;
+  /** Customer VAT registration number, if registered */
+  tax_id: string | null;
+  country: string;
   customer_type: CustomerType;
   created_at: string;
 }
@@ -297,11 +333,12 @@ export interface Invoice {
   customer_id: string;
   invoice_date: string;
   subtotal: number;
-  total_cgst: number;
-  total_sgst: number;
-  total_igst: number;
+  total_vat: number;
   round_off: number;
   grand_total: number;
+  /** ISO currency the document was issued in (pre-VAT documents are INR) */
+  currency: string;
+  prices_include_vat?: boolean;
   /** Sum of payments applied to this invoice */
   amount_paid?: number;
   status: InvoiceStatus;
@@ -315,6 +352,9 @@ export interface Invoice {
   organization_id?: string;
   /** Public PDF short link code for /i/{short_code} */
   short_code?: string | null;
+  /** Email: last time this invoice was emailed, and how many times */
+  last_emailed_at?: string | null;
+  email_count?: number;
   customer?: Customer;
   items?: InvoiceItem[];
   creator?: AppUser;
@@ -327,13 +367,14 @@ export interface InvoiceItem {
   product_id?: string | null;
   hsn_code: string;
   quantity: number;
+  /** Unit snapshot printed on the line (kg, pcs...) */
+  unit?: string | null;
   unit_price: number;
   price_overridden: boolean;
   taxable_value: number;
-  gst_rate: number;
-  cgst_amount: number;
-  sgst_amount: number;
-  igst_amount: number;
+  vat_rate: number;
+  vat_amount: number;
+  vat_category?: VatCategory;
   line_total: number;
   /** Mobile shop - optional IMEI/serial for this line */
   imei_serial?: string | null;
@@ -343,7 +384,7 @@ export interface InvoiceItem {
   variant_tag?: string | null;
   /** Jewellery snapshots - rate/weights charged at bill time */
   metal_rate_used?: number | null;
-  /** Same locked ₹/g as metal_rate_used; permanent sale-time snapshot */
+  /** Same locked rate per gram as metal_rate_used; permanent sale-time snapshot */
   rate_locked_at_sale?: number | null;
   /** live_metal_rates | metal_rates | manual */
   rate_source?: string | null;
@@ -367,9 +408,11 @@ export interface CreateInvoicePayload {
   invoice_date: string;
   notes?: string;
   warehouse_id?: string | null;
+  prices_include_vat?: boolean;
   items: {
     product_id?: string | null;
     quantity: number;
+    unit?: string | null;
     unit_price: number;
     price_overridden: boolean;
     imei_serial?: string | null;
@@ -389,7 +432,8 @@ export interface CreateInvoicePayload {
     guest_id_proof?: string | null;
     room_booking_id?: string | null;
     hsn_code?: string | null;
-    gst_rate?: number | null;
+    vat_rate?: number | null;
+    vat_category?: VatCategory | null;
   }[];
 }
 
@@ -431,7 +475,7 @@ export type RoomType = {
   description: string | null;
   sac_code: string | null;
   base_price: number;
-  gst_rate: number;
+  vat_rate: number;
   max_occupancy: number;
   is_active: boolean;
   created_at: string;
@@ -481,4 +525,32 @@ export interface BusinessDataEntry {
   created_by: string | null;
   created_at: string;
   organization_id?: string;
+}
+
+/** Organization-defined product category or subcategory (parent_id set). */
+export interface ProductCategoryRow {
+  id: string;
+  organization_id?: string;
+  name: string;
+  parent_id: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+/** One sent (or failed) invoice / reminder email. */
+export interface InvoiceEmailLog {
+  id: string;
+  organization_id?: string;
+  invoice_id: string | null;
+  customer_id: string | null;
+  kind: "invoice" | "reminder";
+  to_email: string;
+  cc: string | null;
+  subject: string;
+  status: "sent" | "failed";
+  provider: string | null;
+  provider_message_id: string | null;
+  error: string | null;
+  sent_by: string | null;
+  created_at: string;
 }

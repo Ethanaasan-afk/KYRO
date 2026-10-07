@@ -21,6 +21,7 @@ export async function updateSession(request: NextRequest) {
   const isCompleteSetup = path.startsWith("/complete-setup");
   const isMarketingPage =
     path === "/" ||
+    path.startsWith("/pricing") ||
     path.startsWith("/how-it-works") ||
     path.startsWith("/contact");
   const isLegalPage =
@@ -37,6 +38,8 @@ export async function updateSession(request: NextRequest) {
     path === "/favicon.ico" ||
     path === "/robots.txt" ||
     path === "/sitemap.xml" ||
+    path === "/manifest.json" ||
+    /\.(json|webmanifest|txt|xml|ico|mp4|webm|woff2?|ttf|pdf)$/i.test(path) ||
     path.startsWith("/api");
 
   // Demo mode: skip Supabase entirely, allow the app through

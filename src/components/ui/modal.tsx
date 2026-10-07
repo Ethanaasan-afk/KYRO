@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "./button";
@@ -35,31 +36,44 @@ export function Modal({ open, onClose, title, children, className, size = "md" }
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-ink/45 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className={cn(
-          "relative w-full overflow-hidden rounded-t-[16px] border border-border bg-surface shadow-lift sm:rounded-[10px]",
-          "max-h-[92dvh] sm:max-h-[85vh]",
-          sizes[size],
-          className
-        )}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-      >
-        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border sm:hidden" aria-hidden />
-        <div className="flex items-center justify-between border-b border-border px-5 py-3 sm:py-4">
-          <h2 className="font-display text-base font-semibold tracking-tight text-ink">{title}</h2>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X className="h-4 w-4" /> Close
-          </Button>
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
+          <motion.div
+            className="absolute inset-0 bg-ink/45 backdrop-blur-sm"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          />
+          <motion.div
+            initial={{ opacity: 0, y: 28, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 380, damping: 32, mass: 0.8 }}
+            className={cn(
+              "relative w-full overflow-hidden rounded-t-[18px] border border-border bg-surface shadow-lift sm:rounded-[16px]",
+              "max-h-[92dvh] sm:max-h-[85vh]",
+              sizes[size],
+              className
+            )}
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border sm:hidden" aria-hidden />
+            <div className="flex items-center justify-between border-b border-border px-5 py-3 sm:py-4">
+              <h2 className="font-display text-base font-semibold tracking-tight text-ink">{title}</h2>
+              <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
+                <X className="h-4 w-4" /> Close
+              </Button>
+            </div>
+            <div className="max-h-[calc(92dvh-4.5rem)] overflow-y-auto overscroll-contain p-5 sm:max-h-[70vh]">
+              {children}
+            </div>
+          </motion.div>
         </div>
-        <div className="max-h-[calc(92dvh-4.5rem)] overflow-y-auto overscroll-contain p-5 sm:max-h-[70vh]">
-          {children}
-        </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRazorpay } from "@/lib/billing/razorpay";
-import { getRazorpayPlanId, type PaidPlanId, PAID_PLANS } from "@/lib/billing/plans";
+import { getRazorpayPlanId, type PaidPlanId, PAID_PLANS, PLAN_CURRENCY } from "@/lib/billing/plans";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -100,7 +100,8 @@ export async function POST(request: Request) {
       keyId,
       plan,
       planName: PAID_PLANS[plan].name,
-      amountInr: PAID_PLANS[plan].priceInr,
+      amount: PAID_PLANS[plan].priceMonthly,
+      currency: PLAN_CURRENCY,
       prefill: {
         name: org.brand_name || org.name,
         email: org.email || user.email,

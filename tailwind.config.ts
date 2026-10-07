@@ -1,5 +1,17 @@
 import type { Config } from "tailwindcss";
 
+/**
+ * Theme colors live in CSS variables (light/dark). Returning a function lets Tailwind
+ * apply opacity modifiers too - `bg-primary/10`, `border-rose/40` - via color-mix().
+ */
+function v(name: string): string {
+  const color = ({ opacityValue }: { opacityValue?: string }) =>
+    opacityValue === undefined || opacityValue === "1" || opacityValue.startsWith("var(--tw-")
+      ? `var(${name})`
+      : `color-mix(in srgb, var(${name}) calc(${opacityValue} * 100%), transparent)`;
+  return color as unknown as string;
+}
+
 const config: Config = {
   darkMode: "class",
   content: [
@@ -10,100 +22,100 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        cloud: "var(--cloud)",
+        cloud: v("--cloud"),
         surface: {
-          DEFAULT: "var(--surface)",
-          hover: "var(--surface-hover)",
+          DEFAULT: v("--surface"),
+          hover: v("--surface-hover"),
         },
-        border: "var(--border)",
+        border: v("--border"),
         primary: {
-          DEFAULT: "var(--primary)",
-          hover: "var(--primary-hover)",
-          soft: "var(--primary-soft)",
+          DEFAULT: v("--primary"),
+          hover: v("--primary-hover"),
+          soft: v("--primary-soft"),
         },
         sidebar: {
-          DEFAULT: "var(--sidebar)",
-          elevated: "var(--sidebar-elevated)",
-          border: "var(--sidebar-border)",
-          text: "var(--sidebar-text)",
-          active: "var(--sidebar-text-active)",
+          DEFAULT: v("--sidebar"),
+          elevated: v("--sidebar-elevated"),
+          border: v("--sidebar-border"),
+          text: v("--sidebar-text"),
+          active: v("--sidebar-text-active"),
         },
         emerald: {
-          DEFAULT: "var(--emerald)",
-          soft: "var(--emerald-soft)",
+          DEFAULT: v("--emerald"),
+          soft: v("--emerald-soft"),
         },
         sage: {
-          DEFAULT: "var(--sage)",
-          soft: "var(--sage-soft)",
+          DEFAULT: v("--sage"),
+          soft: v("--sage-soft"),
         },
         aqua: {
-          DEFAULT: "var(--aqua)",
-          deep: "var(--aqua-deep)",
-          wash: "var(--aqua-wash)",
+          DEFAULT: v("--aqua"),
+          deep: v("--aqua-deep"),
+          wash: v("--aqua-wash"),
         },
         sun: {
-          DEFAULT: "var(--sun)",
-          deep: "var(--sun-deep)",
-          wash: "var(--sun-wash)",
+          DEFAULT: v("--sun"),
+          deep: v("--sun-deep"),
+          wash: v("--sun-wash"),
         },
         tangerine: {
-          DEFAULT: "var(--tangerine)",
-          deep: "var(--tangerine-deep)",
-          wash: "var(--tangerine-wash)",
+          DEFAULT: v("--tangerine"),
+          deep: v("--tangerine-deep"),
+          wash: v("--tangerine-wash"),
         },
         "vivid-teal": {
-          DEFAULT: "var(--vivid-teal)",
-          wash: "var(--vivid-teal-wash)",
+          DEFAULT: v("--vivid-teal"),
+          wash: v("--vivid-teal-wash"),
         },
         coral: {
-          DEFAULT: "var(--coral)",
-          deep: "var(--coral-deep)",
+          DEFAULT: v("--coral"),
+          deep: v("--coral-deep"),
         },
         violet: {
-          DEFAULT: "var(--violet)",
-          soft: "var(--violet-soft)",
+          DEFAULT: v("--violet"),
+          soft: v("--violet-soft"),
         },
         brass: {
-          DEFAULT: "var(--brass)",
-          soft: "var(--brass-soft)",
+          DEFAULT: v("--brass"),
+          soft: v("--brass-soft"),
         },
         amber: {
-          DEFAULT: "var(--amber)",
-          soft: "var(--amber-soft)",
+          DEFAULT: v("--amber"),
+          soft: v("--amber-soft"),
         },
         rose: {
-          DEFAULT: "var(--rose)",
-          soft: "var(--rose-soft)",
+          DEFAULT: v("--rose"),
+          soft: v("--rose-soft"),
         },
-        ink: "var(--ink)",
+        ink: v("--ink"),
         slate: {
-          DEFAULT: "var(--slate)",
-          dim: "var(--slate-dim)",
+          DEFAULT: v("--slate"),
+          dim: v("--slate-dim"),
         },
         mint: {
-          DEFAULT: "var(--emerald)",
-          soft: "var(--emerald-soft)",
+          DEFAULT: v("--emerald"),
+          soft: v("--emerald-soft"),
         },
-        paper: "var(--ink)",
+        paper: v("--ink"),
         mist: {
-          DEFAULT: "var(--slate)",
-          dim: "var(--slate-dim)",
+          DEFAULT: v("--slate"),
+          dim: v("--slate-dim"),
         },
-        charcoal: "var(--cloud)",
-        foreground: "var(--ink)",
-        muted: "var(--slate)",
+        charcoal: v("--cloud"),
+        foreground: v("--ink"),
+        muted: v("--slate"),
         accent: {
-          DEFAULT: "var(--primary)",
-          soft: "var(--primary-soft)",
-          glow: "var(--primary)",
+          DEFAULT: v("--primary"),
+          soft: v("--primary-soft"),
+          glow: v("--primary"),
         },
-        danger: "var(--rose)",
-        warning: "var(--amber)",
-        success: "var(--sage)",
-        positive: "var(--sage)",
-        background: "var(--cloud)",
-        "surface-2": "var(--surface-hover)",
-        "surface-3": "var(--surface-hover)",
+        danger: v("--rose"),
+        warning: v("--amber"),
+        success: v("--sage"),
+        positive: v("--sage"),
+        background: v("--cloud"),
+        "surface-2": v("--surface-hover"),
+        "surface-3": v("--surface-hover"),
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
@@ -121,6 +133,10 @@ const config: Config = {
       transitionDuration: {
         fast: "180ms",
       },
+      // Every whole percent, so modifiers like `border-white/12` or `bg-white/8` compile
+      opacity: Object.fromEntries(
+        Array.from({ length: 101 }, (_, i) => [String(i), String(i / 100)])
+      ),
     },
   },
   plugins: [],

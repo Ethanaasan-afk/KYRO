@@ -11,7 +11,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: `Privacy Policy - ${APP_NAME}`,
-  description: `How ${APP_NAME} collects, uses, and protects personal data under India's DPDP Act.`,
+  description: `How ${APP_NAME} collects, uses, and protects personal data under UAE data protection law.`,
   openGraph: {
     title: `Privacy Policy - ${APP_TITLE}`,
     description: `Privacy Policy for ${APP_NAME}, operated by ${LEGAL_ENTITY_NAME}.`,
@@ -30,24 +30,24 @@ export default function PrivacyPolicyPage() {
         (the &quot;Service&quot;).
       </p>
       <p>
-        This policy is drafted with reference to India&apos;s{" "}
-        <strong>Digital Personal Data Protection Act, 2023 (DPDP Act)</strong>{" "}
-        and its associated Rules.
+        This policy is drafted with reference to the UAE&apos;s{" "}
+        <strong>Federal Decree-Law No. 45 of 2021 on the Protection of Personal Data (PDPL)</strong>{" "}
+        and its executive regulations.
       </p>
 
       <LegalSection id="who" title="1. Who This Policy Applies To">
         <ul>
           <li>
             <strong>Account Holders / Business Owners (&quot;you&quot;, &quot;Data
-            Principal&quot;)</strong>{" "}
+            Subject&quot;)</strong>{" "}
             - the person or business that signs up for {APP_NAME}.
           </li>
           <li>
             <strong>End Customers of Account Holders</strong> - when you use{" "}
             {APP_NAME} to create invoices, you may enter your own customers&apos;
-            names, phone numbers, addresses, and GSTINs into the platform. You
+            names, phone numbers, addresses, and TRNs into the platform. You
             (the Account Holder) are responsible for that data as the{" "}
-            <strong>Data Fiduciary</strong> for your own customers; {APP_NAME}{" "}
+            <strong>Controller</strong> for your own customers; {APP_NAME}{" "}
             acts as the technology platform (a &quot;Data Processor&quot; in
             relation to that data) storing it on your behalf.
           </li>
@@ -60,7 +60,7 @@ export default function PrivacyPolicyPage() {
         </p>
         <ul>
           <li>Name, email address, phone number</li>
-          <li>Business name, business address, GSTIN</li>
+          <li>Business name, business address, TRN (VAT registration number)</li>
           <li>
             Password (stored in encrypted/hashed form, never in plain text)
           </li>
@@ -74,7 +74,7 @@ export default function PrivacyPolicyPage() {
         </p>
         <ul>
           <li>
-            Customer names, phone numbers, addresses, GSTIN (where applicable)
+            Customer names, phone numbers, addresses, TRN (where applicable)
           </li>
           <li>Product, pricing, and invoice data you create</li>
         </ul>
@@ -94,7 +94,7 @@ export default function PrivacyPolicyPage() {
         <p>We use collected information to:</p>
         <ul>
           <li>
-            Provide and operate the Service (generate invoices, calculate GST,
+            Provide and operate the Service (generate invoices, calculate VAT,
             track inventory)
           </li>
           <li>Authenticate your account and maintain security</li>
@@ -103,8 +103,8 @@ export default function PrivacyPolicyPage() {
             Communicate with you about your account, invoices, or service updates
           </li>
           <li>
-            Comply with legal obligations under Indian law (including tax and
-            consumer protection law)
+            Comply with legal obligations under UAE law (including VAT, tax
+            record-keeping and consumer protection law)
           </li>
           <li>Improve and troubleshoot the Service</li>
         </ul>
@@ -162,8 +162,8 @@ export default function PrivacyPolicyPage() {
         </ul>
       </LegalSection>
 
-      <LegalSection id="rights" title="6. Your Rights (Data Principal Rights under the DPDP Act)">
-        <p>As a Data Principal, you have the right to:</p>
+      <LegalSection id="rights" title="6. Your Rights (Data Subject Rights under the PDPL)">
+        <p>As a Data Subject, you have the right to:</p>
         <ul>
           <li>
             <strong>Access</strong> - request a copy of the personal data we hold
@@ -184,9 +184,9 @@ export default function PrivacyPolicyPage() {
             the Service)
           </li>
           <li>
-            <strong>Grievance redressal</strong> - raise a complaint with our
-            Grievance Officer (see Section 10) and, if unresolved, escalate to
-            the Data Protection Board of India
+            <strong>Complaints</strong> - raise a complaint with our Data
+            Protection contact (see Section 10) and, if unresolved, escalate to
+            the UAE Data Office
           </li>
         </ul>
         <p>
@@ -205,8 +205,8 @@ export default function PrivacyPolicyPage() {
         <p>
           We retain your account data for as long as your account is active.
           After account closure, we may retain invoice and transaction records
-          for the period required under Indian tax and accounting law (typically
-          several years), after which data is deleted or anonymized, except where
+          for the period required under UAE tax and commercial law (at least five
+          years for VAT records), after which data is deleted or anonymized, except where
           longer retention is required by law.
         </p>
       </LegalSection>
@@ -219,19 +219,19 @@ export default function PrivacyPolicyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="consent-manager" title="9. Consent Manager">
+      <LegalSection id="transfers" title="9. International Transfers">
         <p>
-          In line with DPDP Rules, we will integrate with a registered Consent
-          Manager to allow you to manage, review, and withdraw consents given for
-          data processing, once this becomes applicable to our scale of
-          operations and by the regulatory deadline.
+          Our hosting and service providers may process data outside the UAE.
+          Where this happens we rely on providers that apply appropriate
+          safeguards and we transfer only the data needed to run the Service, in
+          line with the PDPL.
         </p>
       </LegalSection>
 
-      <LegalSection id="grievance" title="10. Grievance Officer">
+      <LegalSection id="grievance" title="10. Data Protection Contact">
         <p>
           For any privacy-related questions, complaints, or requests, contact our
-          Grievance Officer:
+          Data Protection contact:
         </p>
         <ul>
           <li>
@@ -250,7 +250,7 @@ export default function PrivacyPolicyPage() {
             <strong>Address:</strong> {LEGAL_ENTITY_ADDRESS}
           </li>
           <li>
-            <strong>Response time:</strong> We aim to acknowledge grievances
+            <strong>Response time:</strong> We aim to acknowledge complaints
             within 7 days and resolve them within 30 days.
           </li>
         </ul>

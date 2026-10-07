@@ -10,22 +10,36 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-/** Round to nearest whole rupee */
-export function roundRupee(n: number): number {
-  return Math.round(n);
+let defaultCurrency = "AED";
+
+/** Set once the organization loads, so screens format in the org's currency. */
+export function setDefaultCurrency(currency: string | null | undefined) {
+  defaultCurrency = currency || "AED";
 }
 
-export function formatINR(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-  }).format(amount);
+export function getDefaultCurrency(): string {
+  return defaultCurrency;
+}
+
+/**
+ * Format money in the organization currency, or an explicit one (documents
+ * issued before the VAT switch are stamped INR and must keep showing rupees).
+ */
+export function formatCurrency(amount: number, currency: string | null | undefined = defaultCurrency): string {
+  const code = currency || defaultCurrency;
+  try {
+    return new Intl.NumberFormat(code === "INR" ? "en-IN" : "en-AE", {
+      style: "currency",
+      currency: code,
+    }).format(amount);
+  } catch {
+    return `${code} ${amount.toFixed(2)}`;
+  }
 }
 
 export function formatDate(date: string | Date): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("en-IN", {
+  return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",

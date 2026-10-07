@@ -1,0 +1,239 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { isDemoMode } from "@/lib/demo/mode";
+import {
+  ensureInvoiceShortCode,
+  INVOICE_PDF_BUCKET,
+  invoicePdfDownloadFilename,
+  invoicePdfObjectPath,
+  invoicePublicDownloadUrl,
+} from "@/lib/invoice-short-link";
+import { getEmailStatus, sendEmail } from "@/lib/email/send";
+import {
+  DEFAULT_TEMPLATES,
+  fillTemplate,
+  isValidEmail,
+  parseEmailList,
+  renderInvoiceEmailHtml,
+  type EmailKind,
+} from "@/lib/email/templates";
+import { APP_NAME } from "@/lib/brand";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { NextResponse } from "next/server";
+
+const MAX_RECIPIENTS = 10;
+const MAX_PDF_BYTES = 6 * 1024 * 1024;
+
+/**
+ * Emails one invoice (or a payment reminder) with its PDF attached.
+ * The browser renders the PDF (same renderer as Download) and posts it here.
+ *
+ * Responses:
+ *   200 { ok: true, id, pdfUrl }
+ *   503 { error: "not_configured", pdfUrl, subject, text } → client falls back to the mail app
+ */
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  try {
+    if (isDemoMode()) {
+      return NextResponse.json({ error: "Demo mode sends emails locally." }, { status: 400 });
+    }
+
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+
+    const { data: profile } = await supabase
+      .from("users")
+      .select("organization_id")
+      .eq("id", user.id)
+      .single();
+    const orgId = profile?.organization_id as string | undefined;
+    if (!orgId) return NextResponse.json({ error: "No organization linked" }, { status: 400 });
+
+    const form = await request.formData();
+    const kind: EmailKind = form.get("kind") === "reminder" ? "reminder" : "invoice";
+    const to = parseEmailList(String(form.get("to") ?? ""));
+    const cc = parseEmailList(String(form.get("cc") ?? ""));
+    const bad = [...to, ...cc].filter((e) => !isValidEmail(e));
+    if (!to.length) return NextResponse.json({ error: "Add at least one email address." }, { status: 400 });
+    if (bad.length) return NextResponse.json({ error: `Check this address: ${bad[0]}` }, { status: 400 });
+    if (to.length + cc.length > MAX_RECIPIENTS) {
+      return NextResponse.json({ error: `Up to ${MAX_RECIPIENTS} recipients per email.` }, { status: 400 });
+    }
+
+    const file = form.get("pdf");
+    const pdf =
+      file && typeof file !== "string" && typeof (file as Blob).arrayBuffer === "function"
+        ? Buffer.from(await (file as Blob).arrayBuffer())
+        : null;
+    if (!pdf) return NextResponse.json({ error: "Missing PDF" }, { status: 400 });
+    if (pdf.byteLength > MAX_PDF_BYTES) {
+      return NextResponse.json({ error: "The PDF is too large to email." }, { status: 413 });
+    }
+
+    const admin = createAdminClient();
+    const { data: invoice, error: invErr } = await admin
+      .from("invoices")
+      .select(
+        "id, invoice_number, invoice_date, grand_total, amount_paid, currency, status, organization_id, customer:customers(id, name, email)"
+      )
+      .eq("id", params.id)
+      .eq("organization_id", orgId)
+      .single();
+    if (invErr || !invoice) {
+      return NextResponse.json({ error: invErr?.message ?? "Invoice not found" }, { status: 404 });
+    }
+    if (invoice.status === "cancelled") {
+      return NextResponse.json({ error: "Cancelled invoices can't be emailed." }, { status: 400 });
+    }
+
+    const { data: org } = await admin
+      .from("organizations")
+      .select("name, brand_name, email")
+      .eq("id", orgId)
+      .single();
+    // Email preferences arrive with migration 038 - tolerate their absence
+    const { data: prefs } = await admin
+      .from("organizations")
+      .select("email_subject_template, email_body_template, email_bcc_self")
+      .eq("id", orgId)
+      .maybeSingle();
+
+    const rawCustomer = invoice.customer as
+      | { id: string; name: string; email: string | null }
+      | { id: string; name: string; email: string | null }[]
+      | null;
+    const customer = Array.isArray(rawCustomer) ? rawCustomer[0] : rawCustomer;
+    const company = (org?.brand_name || org?.name || APP_NAME) as string;
+
+    // Same PDF the customer can reopen from the short link
+    let pdfUrl: string | null = null;
+    try {
+      const objectPath = invoicePdfObjectPath(orgId, invoice.id, invoice.invoice_number);
+      const { error: upErr } = await admin.storage
+        .from(INVOICE_PDF_BUCKET)
+        .upload(objectPath, pdf, { contentType: "application/pdf", upsert: true });
+      if (!upErr) {
+        const shortCode = await ensureInvoiceShortCode(admin, invoice.id);
+        pdfUrl = invoicePublicDownloadUrl(shortCode, request);
+      } else {
+        console.warn("[invoice-email] pdf upload skipped:", upErr.message);
+      }
+    } catch (e) {
+      console.warn("[invoice-email] short link skipped:", e);
+    }
+
+    const total = Number(invoice.grand_total);
+    const due = Math.max(0, total - Number(invoice.amount_paid ?? 0));
+    const vars = {
+      customer: customer?.name ?? "there",
+      invoice_number: invoice.invoice_number as string,
+      date: formatDate(invoice.invoice_date as string),
+      amount: formatCurrency(total, invoice.currency as string),
+      amount_due: formatCurrency(due, invoice.currency as string),
+      company,
+      link: pdfUrl ?? "",
+    };
+    const defaults = DEFAULT_TEMPLATES[kind];
+    const subjectTemplate =
+      String(form.get("subject") ?? "").trim() ||
+      (kind === "invoice" ? (prefs?.email_subject_template as string | null) : null) ||
+      defaults.subject;
+    const bodyTemplate =
+      String(form.get("message") ?? "").trim() ||
+      (kind === "invoice" ? (prefs?.email_body_template as string | null) : null) ||
+      defaults.body;
+    const subject = fillTemplate(subjectTemplate, vars).slice(0, 200);
+    const text = fillTemplate(bodyTemplate, vars);
+
+    const status = getEmailStatus();
+    if (!status.configured) {
+      return NextResponse.json(
+        { error: "not_configured", pdfUrl, subject, text, to, cc },
+        { status: 503 }
+      );
+    }
+
+    const replyTo = (org?.email as string | null) || user.email || null;
+    const bcc = prefs?.email_bcc_self && replyTo && isValidEmail(replyTo) ? [replyTo] : [];
+
+    let providerId: string | null = null;
+    let sendError: string | null = null;
+    try {
+      const sent = await sendEmail({
+        fromName: company,
+        to,
+        cc,
+        bcc,
+        replyTo,
+        subject,
+        text,
+        html: renderInvoiceEmailHtml({
+          kind,
+          message: text,
+          company,
+          invoiceNumber: vars.invoice_number,
+          date: vars.date,
+          total: vars.amount,
+          due: vars.amount_due,
+          link: pdfUrl,
+        }),
+        attachments: [
+          {
+            filename: invoicePdfDownloadFilename(invoice.invoice_number).replace(
+              /\.pdf$/i,
+              ` ${String(invoice.invoice_number).replace(/[^\w.-]+/g, "-")}.pdf`
+            ),
+            content: pdf,
+          },
+        ],
+      });
+      providerId = sent.id;
+    } catch (e) {
+      sendError = (e as Error).message || "Send failed";
+    }
+
+    // Log every attempt; the table arrives with migration 038 (ignore if missing).
+    const { error: logErr } = await admin.from("invoice_emails").insert({
+      organization_id: orgId,
+      invoice_id: invoice.id,
+      customer_id: customer?.id ?? null,
+      kind,
+      to_email: to.join(", "),
+      cc: cc.length ? cc.join(", ") : null,
+      subject,
+      status: sendError ? "failed" : "sent",
+      provider: status.provider,
+      provider_message_id: providerId,
+      error: sendError,
+      sent_by: user.id,
+    });
+    if (logErr) console.warn("[invoice-email] log skipped:", logErr.message);
+
+    if (sendError) {
+      return NextResponse.json({ error: sendError, pdfUrl }, { status: 502 });
+    }
+
+    const { data: counter } = await admin
+      .from("invoices")
+      .select("email_count")
+      .eq("id", invoice.id)
+      .maybeSingle();
+    const { error: stampErr } = await admin
+      .from("invoices")
+      .update({
+        last_emailed_at: new Date().toISOString(),
+        email_count: Number((counter as { email_count?: number } | null)?.email_count ?? 0) + 1,
+      })
+      .eq("id", invoice.id)
+      .eq("organization_id", orgId);
+    if (stampErr) console.warn("[invoice-email] stamp skipped:", stampErr.message);
+
+    return NextResponse.json({ ok: true, id: providerId, pdfUrl });
+  } catch (e) {
+    console.error("[invoice-email]", e);
+    return NextResponse.json({ error: (e as Error).message || "Email failed" }, { status: 500 });
+  }
+}

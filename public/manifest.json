@@ -1,12 +1,12 @@
 {
-  "name": "AasanBill",
-  "short_name": "AasanBill",
-  "description": "Bill banao, tension bhagao — GST invoices, inventory, and customers.",
+  "name": "NovaFlow",
+  "short_name": "NovaFlow",
+  "description": "VAT tax invoices, inventory, and customers for the UAE.",
   "start_url": "/login",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#f8fafc",
-  "theme_color": "#1d4ed8",
+  "theme_color": "#7c1cf0",
   "id": "/",
   "icons": [
     {

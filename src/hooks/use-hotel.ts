@@ -34,7 +34,7 @@ export function useRoomTypes(activeOnly = false) {
       return (data ?? []).map((r) => ({
         ...r,
         base_price: Number(r.base_price),
-        gst_rate: Number(r.gst_rate),
+        vat_rate: Number(r.vat_rate ?? 0),
         max_occupancy: Number(r.max_occupancy),
       })) as RoomType[];
     },
@@ -52,7 +52,7 @@ export function useRoomTypeMutations() {
       payload: Partial<RoomType> & {
         name: string;
         base_price: number;
-        gst_rate: number;
+        vat_rate: number;
         max_occupancy: number;
       }
     ) => {
@@ -64,7 +64,7 @@ export function useRoomTypeMutations() {
         description: payload.description?.trim() || null,
         sac_code: payload.sac_code?.trim() || null,
         base_price: payload.base_price,
-        gst_rate: payload.gst_rate,
+        vat_rate: payload.vat_rate,
         max_occupancy: payload.max_occupancy,
         is_active: payload.is_active ?? true,
       };

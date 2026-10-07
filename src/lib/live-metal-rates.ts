@@ -15,12 +15,17 @@ export const GOLD_PURITY_MULTIPLIERS: Record<string, number> = {
 
 export type LiveMetalKind = "gold" | "silver" | "platinum" | "palladium" | "diamond";
 
+/** Currency live rates are fetched and stored in (rows before the VAT switch are INR). */
+export const LIVE_RATES_CURRENCY = "AED";
+
 export type LiveMetalRateRow = {
   id: string;
   metal_type: string;
   karat_or_purity: string;
+  /** Rate per gram in LIVE_RATES_CURRENCY (column name predates the AED switch) */
   rate_per_gram_inr: number;
   fetched_at: string;
+  currency?: string;
 };
 
 export const LIVE_DISPLAY_SLOTS: {
@@ -188,7 +193,7 @@ export type MetalsDevTimeseriesResponse = {
   error_message?: string;
 };
 
-/** Convert a day's metals (INR/toz or USD/toz+INR fx) into live_metal_rates rows. */
+/** Convert a day's metals (AED/toz, or USD/toz + AED fx) into live_metal_rates rows. */
 export function buildLiveRateInsertsFromMetals(
   metals: Record<string, number>,
   fetchedAt: string,
@@ -202,17 +207,17 @@ export function buildLiveRateInsertsFromMetals(
     metals.diamond ?? metals.diamond_1ct ?? metals.diamonds ?? NaN
   );
 
-  // Timeseries often returns USD toz + currencies.INR as USD-per-INR (i.e. 0.012 ≈ 1/83)
+  // Timeseries often returns USD toz + currencies[AED] as USD-per-AED (i.e. 0.272 ≈ 1/3.6725)
+  const target = LIVE_RATES_CURRENCY;
   const currency = (opts?.currency ?? "USD").toUpperCase();
-  if (currency !== "INR") {
-    const inrPerUsd = opts?.currencies?.INR
-      ? 1 / Number(opts.currencies.INR)
-      : NaN;
-    if (Number.isFinite(inrPerUsd) && inrPerUsd > 0) {
-      goldToz *= inrPerUsd;
-      silverToz *= inrPerUsd;
-      platinumToz *= inrPerUsd;
-      palladiumToz *= inrPerUsd;
+  const fxUsdPerTarget = Number(opts?.currencies?.[target]);
+  if (currency !== target) {
+    const targetPerUsd = fxUsdPerTarget ? 1 / fxUsdPerTarget : NaN;
+    if (Number.isFinite(targetPerUsd) && targetPerUsd > 0) {
+      goldToz *= targetPerUsd;
+      silverToz *= targetPerUsd;
+      platinumToz *= targetPerUsd;
+      palladiumToz *= targetPerUsd;
     }
   }
 
@@ -268,12 +273,12 @@ export function buildLiveRateInsertsFromMetals(
   ];
 
   if (Number.isFinite(diamondRaw) && diamondRaw > 0) {
-    // Prefer INR/carat if API ever exposes diamond; else treat like toz→g metals
+    // Prefer target-currency/carat if API ever exposes diamond; else convert from USD
     const diamondInr =
-      currency === "INR"
+      currency === target
         ? Math.round((diamondRaw + Number.EPSILON) * 100) / 100
-        : opts?.currencies?.INR
-          ? Math.round((diamondRaw / Number(opts.currencies.INR) + Number.EPSILON) * 100) / 100
+        : fxUsdPerTarget
+          ? Math.round((diamondRaw / fxUsdPerTarget + Number.EPSILON) * 100) / 100
           : NaN;
     if (Number.isFinite(diamondInr) && diamondInr > 0) {
       rows.push({
@@ -288,7 +293,7 @@ export function buildLiveRateInsertsFromMetals(
   return rows;
 }
 
-/** Build insert rows from a Metals.Dev /v1/latest response (INR, toz). */
+/** Build insert rows from a Metals.Dev /v1/latest response (AED, toz). */
 export function buildLiveRateInserts(
   data: MetalsDevLatestResponse,
   fetchedAt = new Date().toISOString()
@@ -324,10 +329,10 @@ export function buildTimeseriesHistoryInserts(
 }
 
 /**
- * Jewellery diamond reference (₹ / carat) derived from fine gold.
+ * Jewellery diamond reference (per carat) derived from fine gold.
  * Metals.Dev has no diamond spot; this keeps the Diamond trend usable as a
  * market-linked index (still reference-only, never used on invoices unless copied).
- * Factor chosen so 1ct index sits in a familiar retail ballpark vs ₹/g gold.
+ * Factor chosen so 1ct index sits in a familiar retail ballpark vs gold per gram.
  */
 export function diamondIndexFromGold24(gold24PerGramInr: number): number {
   const perCt = gold24PerGramInr * 12;

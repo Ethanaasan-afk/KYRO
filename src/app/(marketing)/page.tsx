@@ -1,236 +1,111 @@
-"use client";
-
 import { PricingPlans } from "@/components/billing/pricing-plans";
 import { FaqList } from "@/components/marketing/faq-list";
-import { MarketingFinalCta } from "@/components/marketing/marketing-final-cta";
-import { MarketingShell } from "@/components/marketing/marketing-shell";
-import { ProductMockup } from "@/components/marketing/product-mockup";
-import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
-import { BUSINESS_TYPE_OPTIONS } from "@/lib/business-types";
-import {
-  AlertTriangle,
-  BedDouble,
-  Briefcase,
-  CircleDot,
-  FileSpreadsheet,
-  HandCoins,
-  MessageCircle,
-  Package,
-  Pill,
-  Receipt,
-  Shirt,
-  Smartphone,
-  Store,
-} from "lucide-react";
+import { Bento } from "@/components/marketing/landing/bento";
+import { FinalCta } from "@/components/marketing/landing/final-cta";
+import { Hero } from "@/components/marketing/landing/hero";
+import { Industries } from "@/components/marketing/landing/industries";
+import { Reveal } from "@/components/marketing/landing/primitives";
+import { ScrollShowcase } from "@/components/marketing/landing/scroll-showcase";
+import { BusinessMarquee, StatsStrip } from "@/components/marketing/landing/strip";
+import { VatCalculator } from "@/components/marketing/landing/vat-calculator";
+import { APP_DESCRIPTION, APP_NAME, APP_TITLE } from "@/lib/brand";
+import { ArrowRight } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
-const FEATURES = [
-  {
-    icon: Receipt,
-    title: "GST-Compliant Invoicing",
-    body: "CGST, SGST, and IGST calculated automatically from customer state.",
+export const metadata: Metadata = {
+  title: { absolute: APP_TITLE },
+  description: APP_DESCRIPTION,
+  openGraph: {
+    title: APP_TITLE,
+    description: APP_DESCRIPTION,
+    type: "website",
+    images: [{ url: "/marketing/novaflow-tour-poster.jpg", width: 1600, height: 900 }],
   },
-  {
-    icon: Package,
-    title: "Live Inventory Tracking",
-    body: "Stock in/out with movements log and low-stock alerts.",
+  twitter: {
+    card: "summary_large_image",
+    title: APP_TITLE,
+    description: APP_DESCRIPTION,
+    images: ["/marketing/novaflow-tour-poster.jpg"],
   },
-  {
-    icon: AlertTriangle,
-    title: "Expiry Alerts",
-    body: "Spot products nearing expiry before they leave your shelf.",
-  },
-  {
-    icon: MessageCircle,
-    title: "WhatsApp Invoice Sharing",
-    body: "Send a bill to your customer in one tap.",
-  },
-  {
-    icon: HandCoins,
-    title: "Udhaar / Credit Tracking",
-    body: "Running customer balances and a simple khata-style ledger.",
-  },
-  {
-    icon: FileSpreadsheet,
-    title: "GSTR-1 / 3B Ready Reports",
-    body: "Export Excel sheets your CA can use for filing.",
-  },
-];
-
-const TYPE_ICONS: Record<string, typeof Store> = {
-  grocery: Store,
-  mobile_shop: Smartphone,
-  pharmacy: Pill,
-  cloth_shop: Shirt,
-  service_freelancer: Briefcase,
-  jewellery: CircleDot,
-  hotel: BedDouble,
-  general: CircleDot,
 };
 
 const FAQ_ITEMS = [
+  {
+    q: "Will it work for my kind of business?",
+    a: `Almost certainly. ${APP_NAME} has 16 trades built in - fruit & vegetables, grocery, restaurants, hardware & building materials, furniture & appliances, perfumes, auto parts, wholesale, pharmacy, mobile shops, clothing, salons, jewellery, hotels, freelancers and a general mode. Each brings its own units (kg, litres, metres, boxes, hours…), categories with subcategories and invoice fields.`,
+  },
+  {
+    q: "Can I sell by weight, like 1.25 kg?",
+    a: "Yes. Quantities follow the unit you sell in: kilos, grams and litres take decimals, while pieces and boxes stay whole. Stock moves by the same amount, so 1.25 kg sold is 1.25 kg off the shelf.",
+  },
+  {
+    q: "Can I email invoices to my customers?",
+    a: "Yes - one at a time from the invoice page, many at once from the invoice list, or payment reminders to everyone who owes you. Each email carries the PDF tax invoice and a secure download link, and replies come straight to your business email.",
+  },
+  {
+    q: "Are the tax invoices FTA compliant?",
+    a: "Invoices are laid out as UAE tax invoices: your TRN, the customer's TRN where they have one, VAT per line, a VAT summary by rate and totals in AED. Always confirm the requirements for your own business with your accountant.",
+  },
+  {
+    q: "Do you file my VAT return for me?",
+    a: `No. ${APP_NAME} prepares a VAT 201 summary and Excel workbook from your invoices and purchases. You or your accountant still file it on EmaraTax.`,
+  },
   {
     q: "Is my data safe?",
     a: "Yes. Each business's data is fully isolated from other tenants, and the app is hosted on a secure cloud stack. You only see your own organization.",
   },
   {
-    q: "Can I cancel anytime?",
-    a: "Yes. Cancel from Settings → Billing whenever you like. No long lock-in. See our Refund & Cancellation Policy for how refunds work on annual plans.",
-  },
-  {
-    q: "Do you file my GST returns for me?",
-    a: "No. AasanBill generates GSTR-ready export files (GSTR-1 / GSTR-3B style). You or your CA still file them on the GST portal.",
-  },
-  {
-    q: "What if I run a different kind of business?",
-    a: "Today we support Grocery/Kirana, Mobile/Electronics, Pharmacy, Clothing, Freelancer/Services, Jewellery, Hotel/Guest House, and Other/General, with small field tweaks per type. More verticals are being added carefully, without bloating the core billing engine.",
-  },
-  {
     q: "What's included in the free trial?",
-    a: "New accounts get a 14-day free trial with the Starter limits. No card required up front. Subscribe when you're ready to continue.",
+    a: "New accounts get a 14-day free trial with the Starter limits. No card required up front. Subscribe when you're ready to continue, and cancel anytime from Settings → Billing.",
   },
 ];
 
 export default function MarketingHomePage() {
   return (
-    <MarketingShell>
-      <HeroSection />
-      <WhoSection />
-      <FeaturesSection />
-      <PricingSection />
-      <FaqSection />
-      <MarketingFinalCta />
-    </MarketingShell>
-  );
-}
+    <main>
+      <Hero />
+      <StatsStrip />
+      <BusinessMarquee />
+      <ScrollShowcase />
+      <Industries />
+      <VatCalculator />
+      <Bento />
 
-function HeroSection() {
-  return (
-    <section className="relative overflow-hidden bg-slate-50/50">
-      <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-12 sm:px-6 sm:pb-20 sm:pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-12">
-        <div className="animate-marketing-fade">
-          <p className="font-display text-sm font-semibold tracking-tight text-primary">
-            {APP_NAME}
-          </p>
-          <h1 className="mt-3 font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl sm:leading-[1.08]">
-            GST Billing, Made Aasan
-          </h1>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-slate sm:text-lg">
-            GST invoicing, inventory, and expiry tracking for Indian small businesses.{" "}
-            {APP_TAGLINE}.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link
-              href="/signup"
-              className="inline-flex h-12 items-center rounded-[10px] bg-primary px-5 text-sm font-semibold text-white shadow-card transition-transform duration-200 hover:opacity-95 hover:scale-[1.02] active:scale-[0.99]"
-            >
-              Start Free - 14 Day Trial
-            </Link>
-            <Link
-              href="/#pricing"
-              className="inline-flex h-12 items-center rounded-[10px] border border-border bg-surface px-5 text-sm font-semibold text-ink hover:bg-surface-hover"
-            >
-              See pricing
-            </Link>
-          </div>
-          <p className="mt-4 text-xs text-slate-dim">
-            No card required to start. Cancel anytime from Settings.
-          </p>
-        </div>
-        <ProductMockup />
-      </div>
-    </section>
-  );
-}
-
-function WhoSection() {
-  const types = BUSINESS_TYPE_OPTIONS.filter((o) => o.value !== "general");
-  return (
-    <section className="border-y border-border/70 bg-surface py-12 sm:py-14">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <p className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-          Who it&apos;s for
-        </p>
-        <h2 className="mt-2 text-center font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-          Built for the shops we support today
-        </h2>
-        <p className="mx-auto mt-2 max-w-2xl text-center text-sm text-slate">
-          Same billing engine, with small field tweaks per business type. More verticals later;
-          we won&apos;t pretend we cover every trade yet.
-        </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3 sm:gap-4">
-          {types.map((t) => {
-            const Icon = TYPE_ICONS[t.value] ?? CircleDot;
-            return (
-              <div
-                key={t.value}
-                className="flex min-w-[140px] flex-col items-center gap-2 px-4 py-4 text-center"
+      <section id="pricing" className="relative scroll-mt-20 border-y border-white/8 bg-white/[0.02] py-20 sm:py-28">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <Reveal>
+            <PricingPlans variant="marketing" />
+          </Reveal>
+          <Reveal delay={0.1}>
+            <p className="mt-10 text-center">
+              <Link
+                href="/pricing"
+                className="group inline-flex items-center gap-2 text-sm font-semibold text-[#d9aaff] hover:text-white"
               >
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                  <Icon className="h-5 w-5" aria-hidden />
-                </span>
-                <span className="max-w-[9rem] font-display text-xs font-semibold leading-snug text-ink">
-                  {t.label}
-                </span>
-              </div>
-            );
-          })}
+                Compare every feature and see what you&apos;ll save
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </p>
+          </Reveal>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-function FeaturesSection() {
-  return (
-    <section id="features" className="scroll-mt-20 py-14 sm:py-16">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Features</p>
-        <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-          What you actually get in the app
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm text-slate">Live today. No vapourware.</p>
-        <div className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div key={f.title}>
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                <f.icon className="h-5 w-5" aria-hidden />
-              </span>
-              <h3 className="mt-3 font-display text-sm font-semibold text-ink">{f.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate">{f.body}</p>
-            </div>
-          ))}
+      <section id="faq" className="relative scroll-mt-20 py-20 sm:py-28">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          <Reveal>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c98bff]">FAQ</p>
+            <h2 className="mt-3 font-display text-4xl font-extrabold tracking-[-0.035em] text-white sm:text-5xl">
+              Straight answers
+            </h2>
+          </Reveal>
+          <Reveal delay={0.1} className="mt-10">
+            <FaqList items={FAQ_ITEMS} />
+          </Reveal>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-function PricingSection() {
-  return (
-    <section
-      id="pricing"
-      className="scroll-mt-20 border-y border-border/70 bg-cloud/60 py-14 sm:py-16"
-    >
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <PricingPlans variant="marketing" />
-      </div>
-    </section>
-  );
-}
-
-function FaqSection() {
-  return (
-    <section id="faq" className="scroll-mt-20 py-14 sm:py-16">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">FAQ</p>
-        <h2 className="mt-2 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-          Straight answers
-        </h2>
-        <div className="mt-8">
-          <FaqList items={FAQ_ITEMS} />
-        </div>
-      </div>
-    </section>
+      <FinalCta />
+    </main>
   );
 }

@@ -9,6 +9,7 @@ import {
   writeOnboardingSeen,
 } from "@/lib/onboarding-storage";
 import { createClient } from "@/lib/supabase/client";
+import { APP_NAME } from "@/lib/brand";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,7 +23,7 @@ type TourStep = {
 
 const ALL_STEPS: TourStep[] = [
   {
-    title: "Welcome to AasanBill",
+    title: `Welcome to ${APP_NAME}`,
     body: "This short tour explains every section in everyday words. Use Next, or click any item in the left menu - both work. Skip anytime.",
     target: null,
     href: "/dashboard",
@@ -84,7 +85,7 @@ const ALL_STEPS: TourStep[] = [
   },
   {
     title: "Reports",
-    body: "See sales and tax summaries for any date range. Useful when you (or your CA) need numbers for filing or decisions.",
+    body: "See sales and tax summaries for any date range. Includes a VAT 201 summary for your accountant when it's time to file.",
     target: "tour-reports",
     href: "/reports",
   },
@@ -96,14 +97,14 @@ const ALL_STEPS: TourStep[] = [
   },
   {
     title: "Settings",
-    body: "Your company name, address, GSTIN, bank, and UPI details. These appear on invoices - keep them up to date.",
+    body: "Your company name, address, TRN, and bank details. These appear on tax invoices - keep them up to date.",
     target: "tour-settings",
     href: "/settings",
     adminOnly: true,
   },
   {
     title: "Billing (your plan)",
-    body: "Manage your AasanBill subscription - trial, upgrades, and plan limits. Only admins need this screen.",
+    body: `Manage your ${APP_NAME} subscription - trial, upgrades, and plan limits. Only admins need this screen.`,
     target: "tour-billing",
     href: "/settings/billing",
     adminOnly: true,

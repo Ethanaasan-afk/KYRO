@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/auth-provider";
+import { VAT_CATEGORY_LABELS } from "@/lib/vat";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -12,7 +13,10 @@ import { useOrgAccess } from "@/hooks/use-org-access";
 import { useBusinessType } from "@/hooks/use-business-type";
 import { useLiveMarketRates } from "@/hooks/use-live-market-rates";
 import { findLatestRate, useMetalRates } from "@/hooks/use-metal-rates";
-import { categoryOptionsForBusinessType } from "@/lib/business-types";
+import { CategoryManager } from "@/components/products/category-manager";
+import { useCategoryTree } from "@/hooks/use-product-categories";
+import { formatQty, getUnit } from "@/lib/units";
+import { cn } from "@/lib/utils";
 import {
   calcJewelleryTaxable,
   isJewelleryProduct,
@@ -21,8 +25,8 @@ import {
 import { calcProductMargin, MARGIN_BADGE_CLASS } from "@/lib/product-margin";
 import { productColor } from "@/lib/product-color";
 import type { Product } from "@/lib/types";
-import { formatINR, formatDate } from "@/lib/utils";
-import { Pencil, Plus } from "lucide-react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { FolderTree, Pencil, Plus } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -32,7 +36,8 @@ import { ProductSwatch, ProductTag } from "@/components/ui/product-swatch";
 export default function ProductsPage() {
   const { isAdmin } = useAuth();
   const { writesBlocked } = useOrgAccess();
-  const { labels, businessType, isHotel, isJewellery } = useBusinessType();
+  const { labels, isHotel, isJewellery } = useBusinessType();
+  const { tree } = useCategoryTree();
   const { data: products, isLoading } = useProducts();
   const { data: metalRates } = useMetalRates();
   const { data: liveMarket } = useLiveMarketRates(isJewellery);
@@ -40,6 +45,8 @@ export default function ProductsPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [subcategory, setSubcategory] = useState("");
+  const [manageOpen, setManageOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
@@ -70,19 +77,39 @@ export default function ProductsPage() {
     }).taxableValue;
   };
 
-  const categoryFilterOptions = useMemo(
-    () =>
-      categoryOptionsForBusinessType(
-        businessType,
-        (products ?? []).map((p) => p.category)
-      ),
-    [businessType, products]
+  const pool = useMemo(
+    () => (products ?? []).filter((p) => showInactive || p.is_active),
+    [products, showInactive]
   );
+  // Only categories that actually hold products become filter chips
+  const chips = useMemo(
+    () =>
+      tree
+        .map((n) => {
+          const inCat = pool.filter((p) => p.category.toLowerCase() === n.name.toLowerCase());
+          return {
+            name: n.name,
+            count: inCat.length,
+            subs: n.subcategories
+              .map((s) => ({
+                name: s.name,
+                count: inCat.filter(
+                  (p) => (p.subcategory ?? "").toLowerCase() === s.name.toLowerCase()
+                ).length,
+              }))
+              .filter((s) => s.count > 0),
+          };
+        })
+        .filter((n) => n.count > 0),
+    [tree, pool]
+  );
+  const activeChip = chips.find((c) => c.name === category);
 
   const filtered = useMemo(() => {
     return (products ?? []).filter((p) => {
       if (!showInactive && !p.is_active) return false;
-      if (category && p.category !== category) return false;
+      if (category && p.category.toLowerCase() !== category.toLowerCase()) return false;
+      if (subcategory && (p.subcategory ?? "").toLowerCase() !== subcategory.toLowerCase()) return false;
       if (search) {
         const q = search.toLowerCase();
         return (
@@ -90,53 +117,110 @@ export default function ProductsPage() {
           p.sku.toLowerCase().includes(q) ||
           (p.variant ?? "").toLowerCase().includes(q) ||
           (p.imei_serial ?? "").toLowerCase().includes(q) ||
-          p.hsn_code.includes(q)
+          p.hsn_code.includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          (p.subcategory ?? "").toLowerCase().includes(q)
         );
       }
       return true;
     });
-  }, [products, search, category, showInactive]);
+  }, [products, search, category, subcategory, showInactive]);
 
   return (
     <div>
       <PageHeader
         eyebrow="Catalog"
         title={labels.productPlural}
-        description="Catalog, pricing & HSN codes"
+        description="Catalog, pricing & VAT rates"
         accent="sun"
         actions={
           writesBlocked ? undefined : (
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" /> {labels.addProduct}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setManageOpen(true)}>
+                <FolderTree className="h-4 w-4" /> Categories
+              </Button>
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" /> {labels.addProduct}
+              </Button>
+            </div>
           )
         }
       />
+
+      {chips.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+            <button
+              type="button"
+              onClick={() => {
+                setCategory("");
+                setSubcategory("");
+              }}
+              className={cn(
+                "shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all",
+                !category
+                  ? "border-primary bg-primary text-white shadow-[0_4px_14px_rgba(124,28,240,0.25)]"
+                  : "border-border bg-surface text-slate hover:border-primary/40 hover:text-ink"
+              )}
+            >
+              All <span className="ml-1 opacity-70">{pool.length}</span>
+            </button>
+            {chips.map((c) => (
+              <button
+                key={c.name}
+                type="button"
+                onClick={() => {
+                  setCategory(c.name === category ? "" : c.name);
+                  setSubcategory("");
+                }}
+                className={cn(
+                  "shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all",
+                  category === c.name
+                    ? "border-primary bg-primary text-white shadow-[0_4px_14px_rgba(124,28,240,0.25)]"
+                    : "border-border bg-surface text-slate hover:border-primary/40 hover:text-ink"
+                )}
+              >
+                {c.name} <span className="ml-1 opacity-70">{c.count}</span>
+              </button>
+            ))}
+          </div>
+          {activeChip && activeChip.subs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pl-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-dim">
+                {activeChip.name} ›
+              </span>
+              {activeChip.subs.map((sub) => (
+                <button
+                  key={sub.name}
+                  type="button"
+                  onClick={() => setSubcategory(sub.name === subcategory ? "" : sub.name)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors",
+                    subcategory === sub.name
+                      ? "border-primary/50 bg-primary/10 text-primary"
+                      : "border-border bg-cloud text-slate hover:text-ink"
+                  )}
+                >
+                  {sub.name} <span className="opacity-60">{sub.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search name, SKU, HSN…"
+          placeholder="Search name, SKU, category…"
           className="sm:max-w-xs"
         />
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="h-10 rounded-[10px] border border-border bg-surface px-3 text-sm text-ink focus:border-emerald focus:outline-none"
-        >
-          <option value="">All categories</option>
-          {categoryFilterOptions.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
         <label className="flex items-center gap-2 text-xs text-slate">
           <input
             type="checkbox"
@@ -174,10 +258,10 @@ export default function ProductsPage() {
                 <th>{labels.product}</th>
                 <th>SKU</th>
                 <th>Pack</th>
-                <th>HSN</th>
+                <th>Item code</th>
                 <th className="num">{isJewellery ? "Est. @ today" : "Price"}</th>
                 <th className="num">Margin %</th>
-                <th className="num">GST</th>
+                <th className="num">VAT</th>
                 <th className="num">Stock</th>
                 <th>Status</th>
                 <th></th>
@@ -216,8 +300,11 @@ export default function ProductsPage() {
                           {p.variant && (
                             <span className="ml-1 text-xs text-slate">· {p.variant}</span>
                           )}
-                          <div className="mt-1">
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
                             <ProductTag productId={p.id}>{p.category}</ProductTag>
+                            {p.subcategory ? (
+                              <span className="text-[11px] font-medium text-slate">› {p.subcategory}</span>
+                            ) : null}
                           </div>
                           {(p.mfg_date || p.exp_date) && (
                             <p className="mt-1 font-mono text-[11px] text-slate">
@@ -231,12 +318,15 @@ export default function ProductsPage() {
                     </td>
                     <td className="font-mono text-xs">{p.sku}</td>
                     <td>{p.pack_size}</td>
-                    <td className="font-mono text-xs">{p.hsn_code}</td>
-                    <td className="num">
+                    <td className="font-mono text-xs">{p.hsn_code || "-"}</td>
+                    <td className="num whitespace-nowrap">
                       {est == null ? (
                         <span className="text-slate">—</span>
                       ) : (
-                        formatINR(est)
+                        <>
+                          {formatCurrency(est)}
+                          <span className="ml-1 text-[11px] text-slate">/ {getUnit(p.unit).short}</span>
+                        </>
                       )}
                     </td>
                     <td className="num">
@@ -250,7 +340,9 @@ export default function ProductsPage() {
                         <span className="text-slate">-</span>
                       )}
                     </td>
-                    <td className="num">{p.gst_rate}%</td>
+                    <td className="num">
+                      {p.vat_category === "standard" ? `${p.vat_rate}%` : VAT_CATEGORY_LABELS[p.vat_category]}
+                    </td>
                     <td
                       className={`num num-stock ${
                         out ? "text-coral-deep" : low ? "text-tangerine-deep" : "num-stock-ok"
@@ -272,7 +364,7 @@ export default function ProductsPage() {
                             }}
                           />
                         </div>
-                        <span>{qty}</span>
+                        <span>{p.is_service ? "—" : formatQty(qty, p.unit)}</span>
                         {out && <span className="text-[11px] text-coral-deep">Out</span>}
                         {low && !out && (
                           <span className="text-[11px] text-tangerine-deep">Low</span>
@@ -313,6 +405,8 @@ export default function ProductsPage() {
           </table>
         </div>
       )}
+
+      <CategoryManager open={manageOpen} onClose={() => setManageOpen(false)} />
 
       <ProductFormModal
         open={formOpen}

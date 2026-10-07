@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { GST_RATES } from "@/lib/constants";
+import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
+import { VAT_CATEGORIES } from "@/lib/vat";
+import { DEFAULT_COUNTRY, isValidTaxId, getCountryConfig } from "@/lib/vat/countries";
 import { BUSINESS_TYPES, type ProductFormFieldId } from "@/lib/business-types";
 
 /** Empty string / blank → null; otherwise non-negative number. */
@@ -15,6 +17,8 @@ const optionalString = z.string().optional().nullable().or(z.literal(""));
 export const productSchema = z.object({
   name: z.string().min(1, "Name is required"),
   category: z.string().min(1, "Category is required"),
+  subcategory: optionalString,
+  unit: z.string().optional().default("pcs"),
   variant: optionalString,
   sku: z.string().optional().default(""),
   barcode: optionalString,
@@ -22,10 +26,9 @@ export const productSchema = z.object({
   hsn_code: z.string().optional().default(""),
   base_price: z.coerce.number().min(0, "Price must be ≥ 0"),
   manufacturing_cost: optionalPrice,
-  gst_rate: z.coerce.number().refine((v) => (GST_RATES as readonly number[]).includes(v), {
-    message: "Invalid GST rate",
-  }),
-  reorder_threshold: z.coerce.number().int().min(0).default(10),
+  vat_rate: z.coerce.number().min(0, "VAT rate must be ≥ 0").max(100, "VAT rate must be ≤ 100"),
+  vat_category: z.enum(VAT_CATEGORIES as [string, ...string[]]).default("standard"),
+  reorder_threshold: z.coerce.number().min(0, "Must be 0 or more").default(10),
   is_active: z.boolean().default(true),
   mfg_date: optionalString,
   exp_date: optionalString,
@@ -58,11 +61,11 @@ export function productSchemaForFields(visible: ReadonlySet<ProductFormFieldId>)
     if (visible.has("pack_size") && !data.pack_size?.trim()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Pack size is required", path: ["pack_size"] });
     }
-    if (visible.has("hsn_code") && (data.hsn_code?.trim().length ?? 0) < 4) {
+    if (data.vat_category !== "standard" && data.vat_rate !== 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "HSN code is required",
-        path: ["hsn_code"],
+        message: "Zero-rated and exempt items carry 0% VAT",
+        path: ["vat_rate"],
       });
     }
   });
@@ -73,22 +76,24 @@ export const customerSchema = z.object({
   phone: z.string().optional().nullable(),
   email: z.string().email().optional().nullable().or(z.literal("")),
   billing_address: z.string().optional().nullable(),
-  state: z.string().min(1, "State is required"),
-  gstin: z.string().optional().nullable(),
+  state: z.string().optional().default(""),
+  country: z.string().optional().default(DEFAULT_COUNTRY),
+  tax_id: z.string().optional().nullable(),
   customer_type: z.enum(["b2b", "b2c"]),
 }).superRefine((data, ctx) => {
-  if (data.customer_type === "b2b" && (!data.gstin || data.gstin.length < 15)) {
+  if (!isValidTaxId(data.tax_id, data.country)) {
+    const cfg = getCountryConfig(data.country);
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "GSTIN required for wholesaler (15 characters)",
-      path: ["gstin"],
+      message: `Enter a valid ${cfg.taxIdLabel} (${cfg.taxIdHint})`,
+      path: ["tax_id"],
     });
   }
 });
 
 export const stockInSchema = z.object({
   product_id: z.string().uuid(),
-  quantity: z.coerce.number().int().positive("Quantity must be > 0"),
+  quantity: z.coerce.number().positive("Quantity must be more than 0"),
   source: z.enum(["production", "purchase"]),
   batch_number: z.string().optional().nullable(),
   mfg_date: z.string().optional().nullable(),
@@ -98,34 +103,44 @@ export const stockInSchema = z.object({
 
 export const stockOutSchema = z.object({
   product_id: z.string().uuid(),
-  quantity: z.coerce.number().int().positive("Quantity must be > 0"),
+  quantity: z.coerce.number().positive("Quantity must be more than 0"),
   reason: z.string().min(1, "Reason is required"),
   notes: z.string().optional().nullable(),
 });
 
 export const stockAdjustSchema = z.object({
   product_id: z.string().uuid(),
-  new_quantity: z.coerce.number().int().min(0),
+  new_quantity: z.coerce.number().min(0, "Stock can't be negative"),
   reason: z.string().min(3, "Reason is required"),
 });
 
 export const companySettingsSchema = z.object({
   company_name: z.string().min(1),
   brand_name: z.string().min(1),
-  gstin: z.string().min(1),
+  country: z.string().min(2).default(DEFAULT_COUNTRY),
+  tax_id: z.string().optional().default(""),
+  prices_include_vat: z.boolean().default(false),
   address: z.string().min(1),
   city: z.string().min(1),
-  state: z.string().min(1),
-  pincode: z.string().min(1),
+  state: z.string().min(1, "Emirate is required"),
+  pincode: z.string().optional().default(""),
   phone: z.string().min(1),
   email: z.string().email("Enter a valid email"),
   bank_name: z.string().optional().default(""),
   bank_account: z.string().optional().default(""),
-  bank_ifsc: z.string().optional().default(""),
+  bank_swift: z.string().optional().default(""),
   bank_branch: z.string().optional().default(""),
-  invoice_prefix: z.string().min(1, "Invoice prefix is required").default("AB"),
-  upi_id: z.string().optional().default(""),
+  invoice_prefix: z.string().min(1, "Invoice prefix is required").default(DEFAULT_INVOICE_PREFIX),
   business_type: z.enum(BUSINESS_TYPES).default("general"),
+}).superRefine((data, ctx) => {
+  if (!isValidTaxId(data.tax_id, data.country)) {
+    const cfg = getCountryConfig(data.country);
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Enter a valid ${cfg.taxIdLabel} (${cfg.taxIdHint})`,
+      path: ["tax_id"],
+    });
+  }
 });
 
 export const STRONG_PASSWORD_HINT =

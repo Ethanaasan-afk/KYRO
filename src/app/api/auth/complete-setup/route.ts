@@ -4,6 +4,7 @@ import { slugifyBusinessName } from "@/lib/organization";
 import { DEFAULT_BUSINESS_TYPE, normalizeBusinessType } from "@/lib/business-types";
 import { completeSetupSchema } from "@/lib/validations";
 import { NextResponse } from "next/server";
+import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
 
 function uniqueSlug(base: string): string {
   const suffix = Math.random().toString(36).slice(2, 7);
@@ -59,9 +60,9 @@ export async function POST(request: Request) {
           name: business_name.trim(),
           slug,
           brand_name: business_name.trim(),
-          state: "Gujarat",
+          state: "",
           email: authUser.email ?? "",
-          invoice_prefix: "AB",
+          invoice_prefix: DEFAULT_INVOICE_PREFIX,
           plan: "free",
           subscription_status: "trialing",
           trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
@@ -72,8 +73,6 @@ export async function POST(request: Request) {
           bank_account: "",
           bank_ifsc: "",
           bank_branch: "",
-          upi_id: "",
-          gstin: null,
           address: null,
         })
         .select("id")

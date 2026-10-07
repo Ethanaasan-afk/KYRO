@@ -1,6 +1,6 @@
 "use client";
 
-import { formatINR } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useId, useMemo } from "react";
 import {
   CartesianGrid,
@@ -157,7 +157,7 @@ export function ProfitLossLine({
               <ReferenceLine y={0} stroke="var(--ink)" strokeOpacity={0.35} />
               <Tooltip
                 contentStyle={TOOLTIP}
-                formatter={(v) => [formatINR(Number(v ?? 0)), "Net"]}
+                formatter={(v) => [formatCurrency(Number(v ?? 0)), "Net"]}
               />
               <Line
                 type="monotone"
@@ -260,7 +260,7 @@ export function MarkerLineChart({
               <Tooltip
                 contentStyle={TOOLTIP}
                 formatter={(v, name) => [
-                  formatINR(Number(v ?? 0)),
+                  formatCurrency(Number(v ?? 0)),
                   series.find((s) => s.key === name)?.label ?? String(name),
                 ]}
               />
@@ -313,13 +313,13 @@ export function LiveLineChart({
               tick={{ fontSize: 10, fill: "var(--slate)" }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v) => `₹${Math.round(Number(v)).toLocaleString("en-IN")}`}
+              tickFormatter={(v) => Math.round(Number(v)).toLocaleString("en-AE")}
               domain={["auto", "auto"]}
             />
             <Tooltip
               contentStyle={TOOLTIP}
               formatter={(v, name) => [
-                formatINR(Number(v ?? 0)),
+                formatCurrency(Number(v ?? 0)),
                 series.find((s) => s.key === name)?.label ?? String(name),
               ]}
               labelFormatter={(l) => String(l)}

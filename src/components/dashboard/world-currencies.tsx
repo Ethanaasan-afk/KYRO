@@ -2,17 +2,17 @@
 
 import { useExchangeRates } from "@/hooks/use-exchange-rates";
 import { WORLD_CURRENCIES, formatMoney } from "@/lib/currencies";
-import { formatINR } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useMemo, useState } from "react";
 
 export function WorldCurrenciesSection() {
   const { data, isFetching, isError } = useExchangeRates();
-  const [amountInr, setAmountInr] = useState("1000");
+  const [amountInput, setAmountInput] = useState("1000");
 
   const amount = useMemo(() => {
-    const n = Number(amountInr.replace(/,/g, ""));
+    const n = Number(amountInput.replace(/,/g, ""));
     return Number.isFinite(n) && n >= 0 ? n : 0;
-  }, [amountInr]);
+  }, [amountInput]);
 
   const rates = data?.rates ?? {};
   const usdRate = rates.USD ?? 0;
@@ -27,11 +27,11 @@ export function WorldCurrenciesSection() {
           </p>
           <h2 className="font-display text-base font-semibold text-ink">World currencies</h2>
           <p className="mt-1 text-xs text-slate">
-            Base INR · major &amp; most-traded currencies
+            Base AED · major &amp; most-traded currencies
             {data?.updatedAt ? (
               <span className="font-mono">
                 {" "}
-                · updated {new Date(data.updatedAt).toLocaleString("en-IN")}
+                · updated {new Date(data.updatedAt).toLocaleString("en-GB")}
               </span>
             ) : null}
             {data?.source === "fallback" || isError ? " · offline estimate" : null}
@@ -41,14 +41,14 @@ export function WorldCurrenciesSection() {
         <div className="flex items-end gap-2">
           <div>
             <label htmlFor="fx-amount" className="mb-1 block text-[10px] uppercase tracking-[0.05em] text-slate">
-              Amount (INR)
+              Amount (AED)
             </label>
             <input
               id="fx-amount"
               type="text"
               inputMode="decimal"
-              value={amountInr}
-              onChange={(e) => setAmountInr(e.target.value)}
+              value={amountInput}
+              onChange={(e) => setAmountInput(e.target.value)}
               className="h-10 w-36 rounded-[10px] border border-border bg-surface px-3 font-mono text-sm text-ink focus:border-emerald focus:outline-none"
             />
           </div>
@@ -72,11 +72,11 @@ export function WorldCurrenciesSection() {
             <p className="text-[11px] uppercase tracking-[0.05em] text-slate">1 USD =</p>
             <p className="font-display text-3xl font-semibold text-ink">
               <span className="font-mono text-emerald">
-                {usdRate > 0 ? formatINR(1 / usdRate) : "-"}
+                {usdRate > 0 ? formatCurrency(1 / usdRate, "AED") : "-"}
               </span>
             </p>
             <p className="mt-1 font-mono text-xs text-slate">
-              {formatINR(amount)} → {usdRate > 0 ? formatMoney(amount * usdRate, "USD") : "-"}
+              {formatCurrency(amount, "AED")} → {usdRate > 0 ? formatMoney(amount * usdRate, "USD") : "-"}
             </p>
           </div>
         </div>
@@ -88,16 +88,16 @@ export function WorldCurrenciesSection() {
             <tr>
               <th>Currency</th>
               <th>Code</th>
-              <th className="num">₹ per 1 unit</th>
-              <th className="num">Units per ₹1</th>
-              <th className="num">{formatINR(amount)} equals</th>
+              <th className="num">AED per 1 unit</th>
+              <th className="num">Units per AED 1</th>
+              <th className="num">{formatCurrency(amount, "AED")} equals</th>
             </tr>
           </thead>
           <tbody>
             {WORLD_CURRENCIES.map((c) => {
-              const perInr = rates[c.code];
-              const inrPerUnit = perInr > 0 ? 1 / perInr : 0;
-              const converted = perInr > 0 ? amount * perInr : 0;
+              const perAed = rates[c.code];
+              const aedPerUnit = perAed > 0 ? 1 / perAed : 0;
+              const converted = perAed > 0 ? amount * perAed : 0;
               return (
                 <tr
                   key={c.code}
@@ -112,10 +112,10 @@ export function WorldCurrenciesSection() {
                     )}
                   </td>
                   <td className="font-mono text-xs">{c.code}</td>
-                  <td className="num">{inrPerUnit ? formatINR(inrPerUnit) : "-"}</td>
+                  <td className="num">{aedPerUnit ? formatCurrency(aedPerUnit, "AED") : "-"}</td>
                   <td className="num">
-                    {perInr
-                      ? perInr.toLocaleString("en-IN", {
+                    {perAed
+                      ? perAed.toLocaleString("en-AE", {
                           maximumFractionDigits: 6,
                         })
                       : "-"}
@@ -130,7 +130,7 @@ export function WorldCurrenciesSection() {
         </table>
       </div>
       <p className="border-t border-border px-5 py-3 text-xs text-slate">
-        For reference only. Invoices and catalog prices stay in INR (GST billing).
+        For reference only. Invoices and catalog prices stay in your organization currency.
       </p>
     </section>
   );

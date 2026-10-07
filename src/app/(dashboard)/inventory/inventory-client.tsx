@@ -13,12 +13,11 @@ import { useStockMovements, useStockMutations } from "@/hooks/use-inventory";
 import { useProductMutations, useProducts } from "@/hooks/use-products";
 import type { Product, StockMovement } from "@/lib/types";
 import { productColor } from "@/lib/product-color";
-import { formatDate } from "@/lib/utils";
-import { AlertTriangle, Package, Pencil, Warehouse } from "lucide-react";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatQty, roundQty } from "@/lib/units";
+import { AlertTriangle, Boxes, CheckCircle2, Coins, Pencil, PackageX } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { IconBadge } from "@/components/ui/motion";
 import { useToast } from "@/components/ui/toast";
 import { ProductSwatch } from "@/components/ui/product-swatch";
 
@@ -79,7 +78,7 @@ export default function InventoryPageClient() {
 
   const filteredProducts = useMemo(() => {
     return (products ?? []).filter((p) => {
-      if (!p.is_active) return false;
+      if (!p.is_active || p.is_service) return false;
       if (!search) return true;
       const q = search.toLowerCase();
       return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
@@ -87,7 +86,7 @@ export default function InventoryPageClient() {
   }, [products, search]);
 
   const stockMix = useMemo(() => {
-    const active = (products ?? []).filter((p) => p.is_active);
+    const active = (products ?? []).filter((p) => p.is_active && !p.is_service);
     const inStock = active.filter(
       (p) => (p.current_stock ?? 0) > p.reorder_threshold
     ).length;
@@ -101,12 +100,21 @@ export default function InventoryPageClient() {
       { name: "Out of stock", value: out, color: "#FF6B6B" },
     ].filter((d) => d.value > 0);
   }, [products]);
+  const stockValue = useMemo(
+    () =>
+      (products ?? [])
+        .filter((p) => p.is_active && !p.is_service)
+        .reduce((s, p) => s + Math.max(0, Number(p.current_stock ?? 0)) * Number(p.base_price ?? 0), 0),
+    [products]
+  );
+  const mixCount = (name: string) => stockMix.find((d) => d.name === name)?.value ?? 0;
+  const mixTotal = stockMix.reduce((s, d) => s + d.value, 0);
 
   const productOptions = (products ?? [])
-    .filter((p) => p.is_active)
+    .filter((p) => p.is_active && !p.is_service)
     .map((p) => ({
       value: p.id,
-      label: `${p.name}${p.variant ? ` (${p.variant})` : ""} - ${p.pack_size} [stock: ${p.current_stock ?? 0}]`,
+      label: `${p.name}${p.variant ? ` (${p.variant})` : ""} · ${formatQty(p.current_stock ?? 0, p.unit)} in stock`,
     }));
 
   const resetForm = () => {
@@ -150,13 +158,14 @@ export default function InventoryPageClient() {
           pack_size: stockEdit.pack_size,
           hsn_code: stockEdit.hsn_code,
           base_price: stockEdit.base_price,
-          gst_rate: stockEdit.gst_rate,
-          reorder_threshold: Math.max(0, Math.floor(Number(editReorder) || 0)),
+          vat_rate: stockEdit.vat_rate,
+          vat_category: stockEdit.vat_category,
+          reorder_threshold: Math.max(0, roundQty(Number(editReorder) || 0, stockEdit.unit)),
           is_active: stockEdit.is_active,
         });
       }
       const current = stockEdit.current_stock ?? 0;
-      const nextQty = Math.max(0, Math.floor(Number(editStockQty) || 0));
+      const nextQty = Math.max(0, roundQty(Number(editStockQty) || 0, stockEdit.unit));
       if (nextQty !== current) {
         await adjust.mutateAsync({
           product_id: stockEdit.id,
@@ -325,77 +334,36 @@ export default function InventoryPageClient() {
 
       {tab === "stock" && (
         <>
-          <div className="mb-6 grid gap-5 lg:grid-cols-3">
-            <div className="panel panel-accent-aqua wash-aqua panel-lift p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <IconBadge tone="aqua">
-                  <Warehouse className="h-4 w-4" />
-                </IconBadge>
-                <h2 className="font-display text-sm font-semibold text-ink">Stock status</h2>
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { label: "Items tracked", value: String(mixTotal), icon: Boxes, tone: "text-primary bg-primary/10" },
+              { label: "Healthy", value: String(mixCount("In stock")), icon: CheckCircle2, tone: "text-sage bg-sage-soft" },
+              {
+                label: "Running low / out",
+                value: `${mixCount("Low stock")} / ${mixCount("Out of stock")}`,
+                icon: mixCount("Out of stock") ? PackageX : AlertTriangle,
+                tone: "text-[#c2410c] bg-[#fb923c]/15 dark:text-[#fdba74]",
+              },
+              { label: "Stock value", value: formatCurrency(stockValue), icon: Coins, tone: "text-[#b45309] bg-amber/15 dark:text-[#fcd34d]" },
+            ].map((t) => (
+              <div key={t.label} className="panel flex items-center gap-3 p-4">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${t.tone}`}>
+                  <t.icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-slate">{t.label}</span>
+                  <span className="block truncate font-display text-xl font-bold tracking-tight text-ink">{t.value}</span>
+                </span>
               </div>
-              <div className="mx-auto h-40 w-40">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={
-                        stockMix.length
-                          ? stockMix
-                          : [{ name: "None", value: 1, color: "#EAE4D8" }]
-                      }
-                      dataKey="value"
-                      innerRadius={48}
-                      outerRadius={70}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {(stockMix.length ? stockMix : [{ color: "#EAE4D8" }]).map((d, i) => (
-                        <Cell key={i} fill={d.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: 12,
-                        border: "1px solid var(--border)",
-                        fontSize: 12,
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <ul className="mt-2 space-y-1.5 text-xs">
-                {stockMix.map((d) => (
-                  <li key={d.name} className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />
-                      {d.name}
-                    </span>
-                    <span className="font-mono text-ink">{d.value}</span>
-                  </li>
-                ))}
-                {!stockMix.length && <li className="text-slate">No active products yet.</li>}
-              </ul>
-            </div>
-            <div className="panel panel-accent-sun wash-sun panel-lift flex flex-col justify-center p-5">
-              <IconBadge tone="sun" className="mb-3">
-                <Package className="h-4 w-4" />
-              </IconBadge>
-              <p className="text-[11px] uppercase tracking-wide text-slate">Products listed</p>
-              <p className="font-display text-3xl font-semibold text-ink">
-                {filteredProducts.length}
-              </p>
-            </div>
-            <div className="panel panel-accent-tangerine wash-tangerine panel-lift flex flex-col justify-center p-5">
-              <IconBadge tone="tangerine" className="mb-3">
-                <AlertTriangle className="h-4 w-4" />
-              </IconBadge>
-              <p className="text-[11px] uppercase tracking-wide text-slate">Needs attention</p>
-              <p className="font-display text-3xl font-semibold text-ink">
-                {stockMix
-                  .filter((d) => d.name !== "In stock")
-                  .reduce((s, d) => s + d.value, 0)}
-              </p>
-            </div>
+            ))}
           </div>
+          {mixTotal > 0 && (
+            <div className="mb-5 flex h-2 overflow-hidden rounded-full bg-cloud" aria-hidden>
+              {stockMix.map((d) => (
+                <div key={d.name} style={{ width: `${(d.value / mixTotal) * 100}%`, background: d.color }} />
+              ))}
+            </div>
+          )}
 
           <SearchInput
             value={search}
@@ -472,10 +440,10 @@ export default function InventoryPageClient() {
                                 }}
                               />
                             </div>
-                            <span>{qty}</span>
+                            <span className="whitespace-nowrap">{formatQty(qty, p.unit)}</span>
                           </div>
                         </td>
-                        <td className="num">{p.reorder_threshold}</td>
+                        <td className="num whitespace-nowrap">{formatQty(p.reorder_threshold, p.unit)}</td>
                         <td>
                           {out ? (
                             <Badge variant="danger" color={productColor(p.id)}>
@@ -550,7 +518,8 @@ export default function InventoryPageClient() {
                     </td>
                     <td className="uppercase text-xs text-slate">{m.movement_type}</td>
                     <td className={`num ${m.quantity < 0 ? "text-coral-deep" : "text-aqua-deep"}`}>
-                      {m.quantity > 0 ? `+${m.quantity}` : m.quantity}
+                      {m.quantity > 0 ? "+" : ""}
+                      {formatQty(m.quantity, m.product?.unit)}
                     </td>
                     <td className="text-xs">{m.reference ?? "-"}</td>
                     <td className="text-xs text-muted max-w-[200px] truncate">
@@ -628,7 +597,8 @@ export default function InventoryPageClient() {
                       : "Quantity"
                   }
                   type="number"
-                  min={detail.movement_type === "adjustment" ? 0 : 1}
+                  step="any"
+                  min={0}
                   value={qty}
                   onChange={(e) => setQty(e.target.value)}
                 />
@@ -701,7 +671,8 @@ export default function InventoryPageClient() {
               <Input
                 label="Quantity"
                 type="number"
-                min={1}
+                step="any"
+                min={0}
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
               />
@@ -742,7 +713,8 @@ export default function InventoryPageClient() {
               <Input
                 label="Quantity"
                 type="number"
-                min={1}
+                step="any"
+                min={0}
                 value={qty}
                 onChange={(e) => setQty(e.target.value)}
               />
@@ -766,6 +738,7 @@ export default function InventoryPageClient() {
               <Input
                 label="Counted quantity"
                 type="number"
+                step="any"
                 min={0}
                 value={newQty}
                 onChange={(e) => setNewQty(e.target.value)}
@@ -805,6 +778,7 @@ export default function InventoryPageClient() {
             <Input
               label="Current stock (units)"
               type="number"
+              step="any"
               min={0}
               value={editStockQty}
               onChange={(e) => setEditStockQty(e.target.value)}
@@ -812,6 +786,7 @@ export default function InventoryPageClient() {
             <Input
               label="Reorder level"
               type="number"
+              step="any"
               min={0}
               value={editReorder}
               onChange={(e) => setEditReorder(e.target.value)}

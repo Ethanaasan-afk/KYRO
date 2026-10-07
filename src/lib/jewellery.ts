@@ -27,9 +27,9 @@ export type MetalPurity = GoldPurity | SilverPurity | "999";
 export const MAKING_CHARGE_TYPES = ["flat", "per_gram", "percent"] as const;
 export type MakingChargeType = (typeof MAKING_CHARGE_TYPES)[number];
 
-/** UI toggle: fixed ₹ amount OR % of metal value (per_gram kept for legacy rows). */
+/** UI toggle: fixed amount OR % of metal value (per_gram kept for legacy rows). */
 export const MAKING_CHARGE_TYPE_OPTIONS = [
-  { value: "flat", label: "Fixed amount (₹)" },
+  { value: "flat", label: "Fixed amount" },
   { value: "percent", label: "Percentage of metal value" },
 ] as const;
 
@@ -44,10 +44,10 @@ export const JEWELLERY_CATEGORIES = [
   "Other",
 ] as const;
 
-export const JEWELLERY_DEFAULT_GST = 3;
-export const JEWELLERY_DEFAULT_HSN = "7113";
-export const JEWELLERY_HSN_HELP =
-  "Articles of jewellery of precious metal typically fall under HSN 7113 — confirm the exact code for your item.";
+/** UAE: jewellery is standard rated (5%); investment-grade gold (99%+) can be zero-rated. */
+export const JEWELLERY_DEFAULT_VAT = 5;
+export const JEWELLERY_VAT_HELP =
+  "Jewellery is standard rated at 5%. Investment gold/silver of 99% purity or more can be zero-rated - confirm with your accountant.";
 
 export const METAL_TYPE_OPTIONS = [
   { value: "gold", label: "Gold" },
@@ -145,7 +145,7 @@ export type JewelleryPriceBreakdown = {
 /**
  * Metal = weight × rate/g
  * Wastage = metal × wastage_percent / 100
- * Taxable = metal + making + wastage + stone (before GST)
+ * Taxable = metal + making + wastage + stone (before VAT)
  */
 export function calcJewelleryTaxable(input: {
   netWeight: number;
@@ -190,7 +190,7 @@ export function isJewelleryProduct(
   return m === "gold" || m === "silver" || m === "platinum" || m === "palladium";
 }
 
-/** Resolve ₹/g from live market rows (live_metal_rates shape). */
+/** Resolve rate per gram from live market rows (live_metal_rates shape). */
 export function findLiveRatePerGram(
   rows:
     | { metal_type: string; karat_or_purity: string; rate_per_gram_inr: number }[]
@@ -225,7 +225,7 @@ export function resolveJewelleryRatePerGram(input: {
   return { ratePerGram: 0, source: null };
 }
 
-/** Build line pricing from product catalog + a locked metal rate (₹/g). */
+/** Build line pricing from product catalog + a locked metal rate (per gram). */
 export function jewelleryLineFromProduct(
   product: {
     metal_type?: string | null;
@@ -254,7 +254,7 @@ export function jewelleryLineFromProduct(
     ...breakdown,
     jewellery_purity: product.purity ?? null,
     jewellery_huid: product.huid_number ?? null,
-    /** Piece qty stays 1; unit_price carries full taxable for GST engine */
+    /** Piece qty stays 1; unit_price carries full taxable for the VAT engine */
     quantity: 1,
     unit_price: breakdown.taxableValue,
   };

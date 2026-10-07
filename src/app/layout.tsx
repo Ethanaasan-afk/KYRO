@@ -3,14 +3,14 @@ import { Plus_Jakarta_Sans, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AuthProvider } from "@/components/auth-provider";
-import { APP_DESCRIPTION, APP_TITLE } from "@/lib/brand";
+import { APP_DESCRIPTION, APP_NAME, APP_TITLE } from "@/lib/brand";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 const display = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
-  weight: ["500", "600", "700"],
+  weight: ["500", "600", "700", "800"],
 });
 
 const sans = Inter({
@@ -30,19 +30,19 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#1d4ed8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
+    { media: "(prefers-color-scheme: light)", color: "#7c1cf0" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0b1a" },
   ],
 };
 
 export const metadata: Metadata = {
   title: APP_TITLE,
   description: APP_DESCRIPTION,
-  applicationName: "AasanBill",
+  applicationName: APP_NAME,
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "AasanBill",
+    title: APP_NAME,
     statusBarStyle: "default",
   },
   formatDetection: {

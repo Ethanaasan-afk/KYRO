@@ -3,8 +3,12 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { CategoryFields } from "@/components/products/category-fields";
 import { Select } from "@/components/ui/select";
-import { GST_RATES, PACK_SIZES } from "@/lib/constants";
+import { PACK_SIZES } from "@/lib/constants";
+import { useCompanySettings } from "@/hooks/use-company";
+import { VAT_CATEGORIES, VAT_CATEGORY_LABELS } from "@/lib/vat";
+import { getCountryConfig } from "@/lib/vat/countries";
 import {
   categoryOptionsForBusinessType,
   productFormFieldSet,
@@ -13,9 +17,8 @@ import {
 import {
   calcJewelleryTaxable,
   jewelleryPurityKey,
-  JEWELLERY_DEFAULT_GST,
-  JEWELLERY_DEFAULT_HSN,
-  JEWELLERY_HSN_HELP,
+  JEWELLERY_DEFAULT_VAT,
+  JEWELLERY_VAT_HELP,
   JEWELLERY_PURITY_OPTIONS,
   MAKING_CHARGE_TYPE_OPTIONS,
   parseJewelleryPurityKey,
@@ -23,8 +26,9 @@ import {
   type MakingChargeType,
   type MetalType,
 } from "@/lib/jewellery";
-import { calcProductMargin, MARGIN_BADGE_CLASS, priceWithGst } from "@/lib/product-margin";
-import { formatINR, generateSku } from "@/lib/utils";
+import { calcProductMargin, MARGIN_BADGE_CLASS, priceWithVat } from "@/lib/product-margin";
+import { formatCurrency, generateSku } from "@/lib/utils";
+import { getUnit, unitAllowsDecimals, unitOptions } from "@/lib/units";
 import { productSchemaForFields } from "@/lib/validations";
 import type { Product } from "@/lib/types";
 import { useProductMutations, useProducts } from "@/hooks/use-products";
@@ -42,6 +46,8 @@ type FormValues = z.infer<ReturnType<typeof productSchemaForFields>>;
 const FIELD_ORDER: ProductFormFieldId[] = [
   "name",
   "category",
+  "subcategory",
+  "unit",
   "variant",
   "pack_size",
   "sku",
@@ -50,7 +56,7 @@ const FIELD_ORDER: ProductFormFieldId[] = [
   "hsn_code",
   "base_price",
   "manufacturing_cost",
-  "gst_rate",
+  "vat_rate",
   "is_service",
   "reorder_threshold",
   "mfg_date",
@@ -69,7 +75,9 @@ export function ProductFormModal({
 }) {
   const { upsert } = useProductMutations();
   const { toast } = useToast();
-  const { labels, businessType, isJewellery, isHotel } = useBusinessType();
+  const { labels, businessType, isJewellery, isHotel, config } = useBusinessType();
+  const { data: company } = useCompanySettings();
+  const country = getCountryConfig(company?.country);
   const { data: allProducts } = useProducts();
   const { data: metalRates } = useMetalRates();
   const { data: liveMarket } = useLiveMarketRates(isJewellery);
@@ -85,25 +93,35 @@ export function ProductFormModal({
     [businessType, allProducts]
   );
 
+  // New products start in the category the shop uses most
+  const usualCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of allProducts ?? []) counts.set(p.category, (counts.get(p.category) ?? 0) + 1);
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+  }, [allProducts]);
+
   const emptyDefaults: FormValues = useMemo(
     () => ({
       name: "",
-      category: categoryOptions[0] ?? "Other",
+      category: usualCategory ?? categoryOptions[0] ?? "Other",
+      subcategory: "",
+      unit: config.defaultUnit,
       variant: "",
       sku: "",
       barcode: "",
-      pack_size: visible.has("pack_size") ? "500ml" : "Pcs",
-      hsn_code: isJewellery ? JEWELLERY_DEFAULT_HSN : "",
+      pack_size: visible.has("pack_size") ? "Unit" : "Pcs",
+      hsn_code: "",
       base_price: 0,
       manufacturing_cost: null,
-      gst_rate: isJewellery ? JEWELLERY_DEFAULT_GST : 18,
+      vat_rate: isJewellery ? JEWELLERY_DEFAULT_VAT : country.standardRate,
+      vat_category: "standard",
       reorder_threshold: visible.has("reorder_threshold") ? 10 : 0,
       is_active: true,
       mfg_date: "",
       exp_date: "",
       imei_serial: "",
       batch_number: "",
-      is_service: isHotel ? true : false,
+      is_service: isHotel ? true : config.defaultIsService,
       metal_type: isJewellery ? "gold" : null,
       purity: isJewellery ? "22k" : "",
       huid_number: "",
@@ -114,7 +132,7 @@ export function ProductFormModal({
       stone_value: 0,
       wastage_percent: 0,
     }),
-    [categoryOptions, visible, isJewellery, isHotel]
+    [categoryOptions, usualCategory, visible, isJewellery, isHotel, country.standardRate, config.defaultUnit, config.defaultIsService]
   );
 
   const schema = useMemo(() => productSchemaForFields(visible), [visible]);
@@ -146,6 +164,8 @@ export function ProductFormModal({
       reset({
         name: product.name,
         category: product.category,
+        subcategory: product.subcategory ?? "",
+        unit: product.unit ?? "pcs",
         variant: product.variant ?? "",
         sku: product.sku,
         barcode: product.barcode ?? "",
@@ -153,7 +173,8 @@ export function ProductFormModal({
         hsn_code: product.hsn_code,
         base_price: product.base_price,
         manufacturing_cost: product.manufacturing_cost ?? null,
-        gst_rate: product.gst_rate,
+        vat_rate: product.vat_rate,
+        vat_category: product.vat_category,
         reorder_threshold: product.reorder_threshold,
         is_active: product.is_active,
         mfg_date: product.mfg_date ?? "",
@@ -202,9 +223,13 @@ export function ProductFormModal({
   const pack = watch("pack_size");
   const variant = watch("variant");
   const category = watch("category");
+  const subcategory = watch("subcategory") ?? "";
+  const unit = watch("unit") || "pcs";
+  const unitDef = getUnit(unit);
   const isService = Boolean(watch("is_service"));
   const basePrice = Number(watch("base_price")) || 0;
-  const gstRate = Number(watch("gst_rate")) || 0;
+  const vatCategory = watch("vat_category");
+  const vatRate = vatCategory === "standard" ? Number(watch("vat_rate")) || 0 : 0;
   const mfgCostRaw = watch("manufacturing_cost");
   const mfgCost =
     mfgCostRaw == null || (typeof mfgCostRaw === "string" && mfgCostRaw === "")
@@ -249,10 +274,10 @@ export function ProductFormModal({
     wastagePercent,
   ]);
 
-  const finalWithGst = useMemo(() => {
+  const finalWithVat = useMemo(() => {
     const taxable = isJewellery ? jewelleryPreview?.taxableValue ?? 0 : basePrice;
-    return priceWithGst(taxable, gstRate);
-  }, [isJewellery, jewelleryPreview, basePrice, gstRate]);
+    return priceWithVat(taxable, vatRate);
+  }, [isJewellery, jewelleryPreview, basePrice, vatRate]);
 
   const margin = useMemo(
     () =>
@@ -262,12 +287,6 @@ export function ProductFormModal({
       ),
     [basePrice, mfgCost]
   );
-
-  const selectCategories = useMemo(() => {
-    const opts = [...categoryOptions];
-    if (category && !opts.includes(category)) opts.unshift(category);
-    return opts.map((c) => ({ value: c, label: c }));
-  }, [categoryOptions, category]);
 
   const purityOptions = useMemo(
     () =>
@@ -295,9 +314,7 @@ export function ProductFormModal({
       : isJewellery || isHotel
         ? "Pcs"
         : values.pack_size?.trim() || "Unit";
-    const hsn_code = show("hsn_code")
-      ? values.hsn_code
-      : values.hsn_code?.trim() || (isJewellery ? JEWELLERY_DEFAULT_HSN : "998314");
+    const hsn_code = show("hsn_code") ? values.hsn_code?.trim() ?? "" : values.hsn_code?.trim() || "";
     const asService = Boolean(show("is_service") && values.is_service);
 
     if (isJewellery) {
@@ -315,16 +332,19 @@ export function ProductFormModal({
       ...(product?.id ? { id: product.id } : {}),
       name: values.name,
       category: values.category,
+      subcategory: show("subcategory") ? values.subcategory?.trim() || null : null,
+      unit: show("unit") ? values.unit || "pcs" : isHotel ? "night" : "pcs",
       variant: show("variant") ? values.variant || null : null,
       sku,
       barcode: show("barcode") ? values.barcode || null : null,
       pack_size,
-      hsn_code: hsn_code || (isJewellery ? JEWELLERY_DEFAULT_HSN : "998314"),
+      hsn_code,
       base_price: computedBase,
       manufacturing_cost: show("manufacturing_cost")
         ? values.manufacturing_cost ?? null
         : null,
-      gst_rate: values.gst_rate,
+      vat_category: values.vat_category as Product["vat_category"],
+      vat_rate: values.vat_category === "standard" ? values.vat_rate : 0,
       reorder_threshold: asService
         ? 0
         : show("reorder_threshold")
@@ -373,13 +393,36 @@ export function ProductFormModal({
               );
             case "category":
               return (
-                <Select
+                <CategoryFields
                   key={field}
-                  label="Category"
-                  options={selectCategories}
+                  category={category ?? ""}
+                  subcategory={subcategory ?? ""}
+                  showSubcategory={visible.has("subcategory")}
                   error={errors.category?.message}
-                  {...register("category")}
+                  onCategory={(v) => setValue("category", v, { shouldValidate: true, shouldDirty: true })}
+                  onSubcategory={(v) => setValue("subcategory", v, { shouldDirty: true })}
                 />
+              );
+            case "subcategory":
+              // rendered together with the category picker
+              return null;
+            case "unit":
+              return (
+                <div key={field} className="space-y-1.5">
+                  <Select
+                    label="Sold by (unit)"
+                    options={unitOptions(config.units).map((o) => ({
+                      value: o.value,
+                      label: o.group === "Suggested" ? o.label : `${o.label} · ${o.group}`,
+                    }))}
+                    {...register("unit")}
+                  />
+                  <p className="text-[11px] text-slate">
+                    {unitAllowsDecimals(unit)
+                      ? `Bill any amount, e.g. 1.25 ${unitDef.short}. Price below is per ${unitDef.short}.`
+                      : `Whole ${unitDef.label.toLowerCase()}s only. Price below is per ${unitDef.short}.`}
+                  </p>
+                </div>
               );
             case "variant":
               return (
@@ -459,9 +502,8 @@ export function ProductFormModal({
               return (
                 <Input
                   key={field}
-                  label="HSN code"
-                  helpKey={isJewellery ? undefined : "hsn_code"}
-                  help={isJewellery ? JEWELLERY_HSN_HELP : undefined}
+                  label="Item code (optional)"
+                  helpKey="hsn_code"
                   error={errors.hsn_code?.message}
                   {...register("hsn_code")}
                 />
@@ -470,7 +512,7 @@ export function ProductFormModal({
               return (
                 <Input
                   key={field}
-                  label="Base price (excl. GST)"
+                  label={`Price per ${unitDef.short} (excl. VAT)`}
                   type="number"
                   step="0.01"
                   error={errors.base_price?.message}
@@ -482,7 +524,7 @@ export function ProductFormModal({
                 <div key={field} className="space-y-1.5">
                   <div className="flex items-end gap-2">
                     <Input
-                      label="Manufacturing cost (₹)"
+                      label="Manufacturing cost"
                       type="number"
                       step="0.01"
                       placeholder="Internal only"
@@ -506,19 +548,40 @@ export function ProductFormModal({
                   </p>
                 </div>
               );
-            case "gst_rate":
+            case "vat_rate":
               return (
                 <div key={field} className="contents">
                   <Select
-                    label="GST rate %"
-                    helpKey="gst_rate"
-                    options={GST_RATES.map((r) => ({ value: String(r), label: `${r}%` }))}
-                    error={errors.gst_rate?.message}
-                    {...register("gst_rate")}
+                    label="VAT treatment"
+                    helpKey="vat_category"
+                    options={VAT_CATEGORIES.map((c) => ({ value: c, label: VAT_CATEGORY_LABELS[c] }))}
+                    error={errors.vat_category?.message}
+                    {...register("vat_category", {
+                      onChange: (e) =>
+                        setValue(
+                          "vat_rate",
+                          e.target.value === "standard"
+                            ? isJewellery
+                              ? JEWELLERY_DEFAULT_VAT
+                              : country.standardRate
+                            : 0
+                        ),
+                    })}
                   />
+                  {vatCategory === "standard" ? (
+                    <Input
+                      label="VAT rate %"
+                      helpKey="vat_rate"
+                      help={isJewellery ? JEWELLERY_VAT_HELP : undefined}
+                      type="number"
+                      step="0.01"
+                      error={errors.vat_rate?.message}
+                      {...register("vat_rate")}
+                    />
+                  ) : null}
                   <p className="self-end font-mono text-xs text-slate sm:pb-2">
-                    Final price with GST:{" "}
-                    <span className="font-medium text-ink">{formatINR(finalWithGst)}</span>
+                    Final price with VAT:{" "}
+                    <span className="font-medium text-ink">{formatCurrency(finalWithVat)}</span>
                   </p>
                 </div>
               );
@@ -541,9 +604,10 @@ export function ProductFormModal({
               return (
                 <Input
                   key={field}
-                  label={labels.reorderThreshold}
+                  label={`${labels.reorderThreshold} (${unitDef.short})`}
                   helpKey="reorder_threshold"
                   type="number"
+                  step="any"
                   error={errors.reorder_threshold?.message}
                   {...register("reorder_threshold")}
                 />
@@ -619,13 +683,13 @@ export function ProductFormModal({
               <div className="sm:col-span-2 space-y-1.5">
                 <Input
                   id="huid"
-                  label="HUID number (optional)"
+                  label="Hallmark / certificate no. (optional)"
                   value={huid}
                   onChange={(e) => setHuid(e.target.value)}
                   placeholder="BIS hallmark unique ID"
                 />
                 <p className="text-[11px] text-amber">
-                  Required for BIS-hallmarked gold jewellery under Indian regulations.
+                  Optional hallmark / certificate number for this piece.
                 </p>
               </div>
               <Select
@@ -642,7 +706,7 @@ export function ProductFormModal({
                 label={
                   makingType === "percent"
                     ? "Making charge (%)"
-                    : "Making charge (₹ fixed)"
+                    : "Making charge (fixed amount)"
                 }
                 type="number"
                 step="0.01"
@@ -663,7 +727,7 @@ export function ProductFormModal({
               />
               <Input
                 id="stone_value"
-                label="Stone / diamond value (₹)"
+                label="Stone / diamond value"
                 type="number"
                 step="0.01"
                 min={0}
@@ -680,18 +744,18 @@ export function ProductFormModal({
               {resolvedRate.ratePerGram > 0 ? (
                 <>
                   <p className="mt-2 font-display text-lg font-semibold text-ink">
-                    {formatINR(jewelleryPreview?.taxableValue ?? 0)}
-                    <span className="ml-2 text-xs font-normal text-slate">excl. GST</span>
+                    {formatCurrency(jewelleryPreview?.taxableValue ?? 0)}
+                    <span className="ml-2 text-xs font-normal text-slate">excl. VAT</span>
                   </p>
                   <p className="mt-2 font-mono text-xs text-ink">
-                    Metal {formatINR(jewelleryPreview?.metalValue ?? 0)} (
-                    {Number(weightGrams) || 0} g × {formatINR(resolvedRate.ratePerGram)}
-                    /g) + Making {formatINR(jewelleryPreview?.makingCharge ?? 0)}
+                    Metal {formatCurrency(jewelleryPreview?.metalValue ?? 0)} (
+                    {Number(weightGrams) || 0} g × {formatCurrency(resolvedRate.ratePerGram)}
+                    /g) + Making {formatCurrency(jewelleryPreview?.makingCharge ?? 0)}
                     {(jewelleryPreview?.wastageAmount ?? 0) > 0
-                      ? ` + Wastage ${formatINR(jewelleryPreview?.wastageAmount ?? 0)}`
+                      ? ` + Wastage ${formatCurrency(jewelleryPreview?.wastageAmount ?? 0)}`
                       : ""}
                     {(jewelleryPreview?.stoneValue ?? 0) > 0
-                      ? ` + Stone ${formatINR(jewelleryPreview?.stoneValue ?? 0)}`
+                      ? ` + Stone ${formatCurrency(jewelleryPreview?.stoneValue ?? 0)}`
                       : ""}
                   </p>
                   <p className="mt-1 text-[11px] text-slate">

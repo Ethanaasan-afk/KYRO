@@ -14,15 +14,22 @@ import { useAuth } from "@/components/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { demoDb } from "@/lib/demo/store";
 import { useMemo } from "react";
+import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
+import { setDefaultCurrency } from "@/lib/utils";
+import { DEFAULT_COUNTRY, getCountryConfig } from "@/lib/vat/countries";
 
 function mapOrgRow(row: Record<string, unknown>): Organization {
   return {
     id: String(row.id),
     name: String(row.name ?? ""),
     slug: String(row.slug ?? ""),
+    tax_id: (row.tax_id as string | null) ?? null,
     gstin: (row.gstin as string | null) ?? null,
+    country: String(row.country ?? DEFAULT_COUNTRY),
+    currency: String(row.currency ?? getCountryConfig(row.country as string).currency),
+    prices_include_vat: Boolean(row.prices_include_vat ?? false),
     address: (row.address as string | null) ?? null,
-    state: String(row.state ?? "Gujarat"),
+    state: String(row.state ?? ""),
     bank_details: (row.bank_details as string | null) ?? null,
     logo_url: (row.logo_url as string | null) ?? null,
     plan: (row.plan as Organization["plan"]) ?? "free",
@@ -39,7 +46,7 @@ function mapOrgRow(row: Record<string, unknown>): Organization {
     bank_account: String(row.bank_account ?? ""),
     bank_ifsc: String(row.bank_ifsc ?? ""),
     bank_branch: String(row.bank_branch ?? ""),
-    invoice_prefix: String(row.invoice_prefix ?? "AB"),
+    invoice_prefix: String(row.invoice_prefix ?? DEFAULT_INVOICE_PREFIX),
     upi_id: String(row.upi_id ?? ""),
     signature_url: (row.signature_url as string | null) ?? null,
     updated_at: String(row.updated_at ?? row.created_at ?? new Date().toISOString()),
@@ -48,6 +55,10 @@ function mapOrgRow(row: Record<string, unknown>): Organization {
     razorpay_subscription_id: (row.razorpay_subscription_id as string | null) ?? null,
     current_period_end: (row.current_period_end as string | null) ?? null,
     cancel_at_period_end: Boolean(row.cancel_at_period_end ?? false),
+    email_subject_template: (row.email_subject_template as string | null) ?? null,
+    email_body_template: (row.email_body_template as string | null) ?? null,
+    email_bcc_self: Boolean(row.email_bcc_self ?? false),
+    monthly_sales_goal: row.monthly_sales_goal != null ? Number(row.monthly_sales_goal) : null,
   };
 }
 
@@ -64,7 +75,9 @@ export function useOrganization() {
     enabled: !authLoading && (!!user?.organization_id || isDemoMode()),
     queryFn: async (): Promise<Organization> => {
       if (isDemoMode()) {
-        return demoDb.getOrganization();
+        const demoOrg = demoDb.getOrganization();
+        setDefaultCurrency(demoOrg.currency);
+        return demoOrg;
       }
 
       const orgId = requireOrganizationId(user);
@@ -90,7 +103,9 @@ export function useOrganization() {
         );
       }
 
-      return mapOrgRow(data as Record<string, unknown>);
+      const org = mapOrgRow(data as Record<string, unknown>);
+      setDefaultCurrency(org.currency);
+      return org;
     },
   });
 }
@@ -138,7 +153,7 @@ export function useUpdateCompanySettings() {
         .single();
 
       // Column not migrated yet - strip unknown cols and retry
-      if (error && /business_type|signature_url|schema cache|Could not find the .* column/i.test(error.message)) {
+      if (error && /business_type|signature_url|tax_id|country|currency|prices_include_vat|schema cache|Could not find the .* column/i.test(error.message)) {
         if (rest.business_type) {
           const { writeLocalBusinessType } = await import("@/lib/business-type-storage");
           const { normalizeBusinessType } = await import("@/lib/business-types");
@@ -151,6 +166,11 @@ export function useUpdateCompanySettings() {
         const safePatch = { ...patch } as Record<string, unknown>;
         delete safePatch.business_type;
         delete safePatch.signature_url;
+        if (/tax_id|country|currency|prices_include_vat/i.test(error.message)) {
+          throw new Error(
+            "VAT settings need a database update. Run supabase/migrations/037_vat_gcc.sql in Supabase, then try again."
+          );
+        }
         const retry = await supabase
           .from("organizations")
           .update(safePatch)

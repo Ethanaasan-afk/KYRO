@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Supplier } from "@/lib/types";
 import { useOrgAccess } from "@/hooks/use-org-access";
 import { checkPlanCapability, planLimitErrorMessage } from "@/lib/billing/limits";
+import { normalizeTaxId } from "@/lib/vat/countries";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useSuppliers(activeOnly = false) {
@@ -64,9 +65,9 @@ export function useSupplierMutations() {
           name: payload.name,
           phone: payload.phone || null,
           email: payload.email || null,
-          gstin: payload.gstin || null,
+          tax_id: normalizeTaxId(payload.tax_id) || null,
           address: payload.address || null,
-          state: payload.state || "Gujarat",
+          state: payload.state || "",
           notes: payload.notes || null,
           is_active: payload.is_active ?? true,
           organization_id: orgId,

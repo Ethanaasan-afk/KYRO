@@ -1,12 +1,13 @@
 import type { MetadataRoute } from "next";
 
 const SITE =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://aasanbill.in";
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://novaflow.example";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   const paths = [
     "",
+    "/pricing",
     "/how-it-works",
     "/contact",
     "/privacy-policy",

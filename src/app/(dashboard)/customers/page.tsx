@@ -35,8 +35,8 @@ export default function CustomersPage() {
       return (
         c.name.toLowerCase().includes(q) ||
         (c.phone ?? "").includes(q) ||
-        (c.gstin ?? "").toLowerCase().includes(q) ||
-        c.state.toLowerCase().includes(q)
+        (c.tax_id ?? "").toLowerCase().includes(q) ||
+        (c.state ?? "").toLowerCase().includes(q)
       );
     });
   }, [customers, search]);
@@ -48,8 +48,8 @@ export default function CustomersPage() {
         title="Customers"
         description={
           hideCustomerType
-            ? "Guest / client master — state drives GST type"
-            : "Retail / wholesaler master - state drives GST type"
+            ? "Guest / client master — add a TRN for VAT-registered clients"
+            : "Retail / wholesaler master - add a TRN for VAT-registered customers"
         }
         accent="violet"
         actions={
@@ -67,7 +67,7 @@ export default function CustomersPage() {
       <SearchInput
         value={search}
         onChange={setSearch}
-        placeholder="Search name, phone, GSTIN…"
+        placeholder="Search name, phone, TRN…"
         className="mb-4 sm:max-w-xs"
       />
 
@@ -96,8 +96,8 @@ export default function CustomersPage() {
                 <th>Name</th>
                 {!hideCustomerType && <th>Type</th>}
                 <th>Phone</th>
-                <th>State</th>
-                <th>GSTIN</th>
+                <th>Emirate</th>
+                <th>TRN</th>
                 <th></th>
               </tr>
             </thead>
@@ -121,7 +121,7 @@ export default function CustomersPage() {
                   )}
                   <td className="font-mono text-xs">{c.phone ?? "-"}</td>
                   <td>{c.state}</td>
-                  <td className="font-mono text-xs">{c.gstin ?? "-"}</td>
+                  <td className="font-mono text-xs">{c.tax_id ?? "-"}</td>
                   <td>
                     <div className="flex gap-1">
                       <Link href={`/customers/${c.id}`}>

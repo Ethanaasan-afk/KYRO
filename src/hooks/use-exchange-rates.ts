@@ -22,8 +22,8 @@ export function useExchangeRates() {
     queryFn: fetchRates,
     staleTime: 60 * 60 * 1000,
     placeholderData: {
-      base: "INR",
-      rates: { INR: 1, ...FALLBACK_RATES },
+      base: "AED",
+      rates: { AED: 1, ...FALLBACK_RATES },
       updatedAt: "",
       source: "fallback" as const,
     },

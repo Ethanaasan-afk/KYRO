@@ -7,6 +7,7 @@ import { requireOrganizationId } from "@/lib/org";
 import { createClient } from "@/lib/supabase/client";
 import type { Customer } from "@/lib/types";
 import { useOrgAccess } from "@/hooks/use-org-access";
+import { normalizeTaxId } from "@/lib/vat/countries";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useCustomers() {
@@ -43,7 +44,7 @@ export function useCustomerMutations() {
         ...payload,
         email: payload.email || null,
         phone: payload.phone || null,
-        gstin: payload.gstin || null,
+        tax_id: normalizeTaxId(payload.tax_id) || null,
         billing_address: payload.billing_address || null,
       };
       if (payload.id) {

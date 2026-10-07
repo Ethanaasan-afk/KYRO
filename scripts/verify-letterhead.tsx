@@ -1,5 +1,5 @@
 /**
- * Quick letterhead empty-field check + PDF preview with blank address/GSTIN.
+ * Quick letterhead empty-field check + PDF preview with blank address/TRN.
  * Run: npx tsx --tsconfig tsconfig.json scripts/verify-letterhead.ts
  */
 import React from "react";
@@ -27,50 +27,52 @@ function fileToDataUrl(filePath: string): string | null {
 async function main() {
   // Unit checks
   assert(
-    formatCompanyAddress({ address: "", city: "", state: "Gujarat", pincode: "" }) ===
-      "Gujarat",
-    "state-only should not have commas"
+    formatCompanyAddress({ address: "", city: "", state: "Dubai", pincode: "" }) ===
+      "Dubai",
+    "emirate-only should not have commas"
   );
   assert(
     formatCompanyAddress({ address: "", city: "", state: "", pincode: "" }) === "",
     "all empty address"
   );
   assert(
-    formatCompanyContact({ gstin: "", phone: "", email: "" }) === "",
+    formatCompanyContact({ tax_id: "", phone: "", email: "" }) === "",
     "empty contact"
   );
   assert(
-    formatCompanyContact({ gstin: "  ", phone: "", email: "admin@example.com" }) === "",
-    "whitespace gstin + placeholder email omitted"
+    formatCompanyContact({ tax_id: "  ", phone: "", email: "admin@example.com" }) === "",
+    "whitespace TRN + placeholder email omitted"
   );
   assert(
-    formatCompanyContact({ gstin: "", phone: "99", email: "" }) === "Ph: 99",
+    formatCompanyContact({ tax_id: "", phone: "99", email: "" }) === "Ph: 99",
     "phone only"
   );
   console.log("format helpers OK");
 
   ensureInvoicePdfFonts();
   const root = path.resolve(__dirname, "..");
-  const logoSrc = fileToDataUrl(path.join(root, "public/logo/aasanbill-icon.png"));
-  const wordmarkSrc = fileToDataUrl(path.join(root, "public/logo/aasanbill-full.png"));
+  const logoSrc = fileToDataUrl(path.join(root, "public/logo/novaflow-icon.png"));
+  const wordmarkSrc = fileToDataUrl(path.join(root, "public/logo/novaflow-full.png"));
 
   const company: CompanySettings = {
     id: "preview",
-    company_name: "Sparse Letterhead Pvt. Ltd.",
+    company_name: "Sparse Letterhead LLC",
     brand_name: "Sparse Co",
-    gstin: "",
+    tax_id: "",
+    country: "AE",
+    currency: "AED",
+    prices_include_vat: false,
     address: "",
     city: "",
-    state: "Gujarat",
+    state: "Dubai",
     pincode: "",
     phone: "",
     email: "",
     bank_name: "",
     bank_account: "",
-    bank_ifsc: "",
+    bank_swift: "",
     bank_branch: "",
-    invoice_prefix: "AB",
-    upi_id: "",
+    invoice_prefix: "NF",
     updated_at: new Date().toISOString(),
   };
 
@@ -79,15 +81,14 @@ async function main() {
 
   const invoice = {
     id: "inv",
-    invoice_number: "AB-EMPTY-001",
+    invoice_number: "NF-EMPTY-001",
     customer_id: "c1",
     invoice_date: "2026-08-04",
     subtotal: 100,
-    total_cgst: 9,
-    total_sgst: 9,
-    total_igst: 0,
+    total_vat: 5,
     round_off: 0,
-    grand_total: 118,
+    grand_total: 105,
+    currency: "AED",
     status: "issued",
     cancelled_reason: null,
     notes: null,
@@ -98,9 +99,10 @@ async function main() {
       name: "Walk-in",
       phone: null,
       email: null,
-      gstin: null,
+      tax_id: null,
+      country: "AE",
       billing_address: null,
-      state: "Gujarat",
+      state: "Dubai",
       customer_type: "b2c",
       created_at: new Date().toISOString(),
     },
@@ -114,18 +116,17 @@ async function main() {
         unit_price: 100,
         price_overridden: false,
         taxable_value: 100,
-        gst_rate: 18,
-        cgst_amount: 9,
-        sgst_amount: 9,
-        igst_amount: 0,
-        line_total: 118,
+        vat_rate: 5,
+        vat_amount: 5,
+        line_total: 105,
         product: {
           id: "p1",
           name: "Test Item",
           variant: null,
           pack_size: "1",
           hsn_code: "3402",
-          gst_rate: 18,
+          vat_rate: 5,
+          vat_category: "standard",
           base_price: 100,
           category: "Misc",
           sku: "T1",

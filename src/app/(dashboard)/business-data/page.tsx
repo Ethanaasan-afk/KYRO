@@ -24,7 +24,7 @@ import {
   type PaymentMode,
 } from "@/lib/constants";
 import type { BusinessDataEntry } from "@/lib/types";
-import { downloadCsv, formatDate, formatINR } from "@/lib/utils";
+import { downloadCsv, formatDate, formatCurrency } from "@/lib/utils";
 import { Download, Pencil, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -57,7 +57,7 @@ export default function BusinessDataPage() {
       <PageHeader
         eyebrow="Internal"
         title="Business Data"
-        description="Owner-only cost & expense ledger - never used for invoices or GST"
+        description="Owner-only cost & expense ledger - never used for invoices or VAT"
         accent="tangerine"
       />
 
@@ -141,7 +141,7 @@ function BusinessDataTab({
   const [category, setCategory] = useState<BusinessDataCategory>(defaultCategory);
   const [itemName, setItemName] = useState("");
   const [expenseName, setExpenseName] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMode>("upi");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMode>("cash");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [entryDate, setEntryDate] = useState(() =>
@@ -182,7 +182,7 @@ function BusinessDataTab({
     setCategory(defaultCategory);
     setItemName("");
     setExpenseName("");
-    setPaymentMethod("upi");
+    setPaymentMethod("cash");
     setAmount("");
     setNote("");
     setEntryDate(new Date().toISOString().slice(0, 10));
@@ -308,7 +308,7 @@ function BusinessDataTab({
               Total in range
             </p>
             <p className="font-display text-2xl font-semibold text-ink">
-              {formatINR(total)}
+              {formatCurrency(total)}
             </p>
           </div>
           {byCategory.length > 0 && (
@@ -336,7 +336,7 @@ function BusinessDataTab({
                       {BUSINESS_DATA_CATEGORY_LABELS[cat]}
                     </span>
                     <span className="font-mono text-slate">
-                      {formatINR(amt)} · {share.toFixed(0)}%
+                      {formatCurrency(amt)} · {share.toFixed(0)}%
                     </span>
                   </span>
                 ))}
@@ -386,7 +386,7 @@ function BusinessDataTab({
                     {PAYMENT_MODE_LABELS[e.payment_method]}
                   </td>
                   <td className="num font-mono font-medium">
-                    {formatINR(e.amount)}
+                    {formatCurrency(e.amount)}
                   </td>
                   <td className="font-mono text-xs text-slate whitespace-nowrap">
                     {formatDate(e.entry_date)}
@@ -462,7 +462,7 @@ function BusinessDataTab({
             }))}
           />
           <Input
-            label="Total Amount (₹)"
+            label="Total Amount"
             type="number"
             min={0}
             step="0.01"

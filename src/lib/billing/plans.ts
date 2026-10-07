@@ -20,20 +20,27 @@ export type PlanCapabilities = {
   dedicatedSupport: boolean;
 };
 
+/**
+ * Subscription prices are shown in this currency. The amount actually charged comes
+ * from the Razorpay plan behind RAZORPAY_PLAN_* - create those plans in AED with the
+ * same amounts so the page and the checkout always agree.
+ */
+export const PLAN_CURRENCY = "AED";
+
 export type PlanDefinition = {
   id: PaidPlanId;
   name: string;
-  /** Monthly list price (INR). Also used for Razorpay monthly checkout. */
-  priceInr: number;
-  /** Annual billed price (INR) when paying yearly. */
-  priceAnnualInr: number;
+  /** Monthly list price in PLAN_CURRENCY */
+  priceMonthly: number;
+  /** Annual billed price in PLAN_CURRENCY when paying yearly */
+  priceAnnual: number;
   /**
    * Optional strikethrough “was” price for monthly.
    * Leave undefined/null when no promo is running — never invent a fake discount.
    */
-  compareAtMonthlyInr?: number | null;
+  compareAtMonthly?: number | null;
   /** Optional strikethrough “was” price for annual (e.g. 12× monthly). */
-  compareAtAnnualInr?: number | null;
+  compareAtAnnual?: number | null;
   periodLabel: string;
   description: string;
   /** @deprecated Prefer PLAN_CHECKLIST_FEATURES — kept for simple bullet fallbacks */
@@ -50,7 +57,7 @@ export type PlanPriceView = {
   price: number;
   /** Strikethrough amount, if a real compare-at is configured */
   compareAt: number | null;
-  /** Effective ₹ per month (annual_price / 12 when annual) */
+  /** Effective price per month (annual_price / 12 when annual) */
   perMonth: number;
   periodSuffix: string;
 };
@@ -60,16 +67,16 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
   starter: {
     id: "starter",
     name: "Starter",
-    priceInr: 499,
-    priceAnnualInr: 4999,
-    compareAtMonthlyInr: null,
-    compareAtAnnualInr: 5988,
+    priceMonthly: 29,
+    priceAnnual: 290,
+    compareAtMonthly: null,
+    compareAtAnnual: 348,
     periodLabel: "/ month",
-    description: "For small teams getting started with GST billing.",
+    description: "For small teams getting started with VAT billing.",
     features: [
       "Up to 50 invoices / month",
       "Up to 100 active products",
-      "Inventory & GST invoices",
+      "Inventory & VAT tax invoices",
       "Email support",
     ],
     limits: { maxInvoicesPerMonth: 50, maxActiveProducts: 100 },
@@ -87,10 +94,10 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
   pro: {
     id: "pro",
     name: "Pro",
-    priceInr: 999,
-    priceAnnualInr: 9999,
-    compareAtMonthlyInr: null,
-    compareAtAnnualInr: 11988,
+    priceMonthly: 59,
+    priceAnnual: 590,
+    compareAtMonthly: null,
+    compareAtAnnual: 708,
     periodLabel: "/ month",
     description: "Growing businesses with higher volume.",
     features: [
@@ -115,10 +122,10 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
   business: {
     id: "business",
     name: "Business",
-    priceInr: 1999,
-    priceAnnualInr: 19999,
-    compareAtMonthlyInr: null,
-    compareAtAnnualInr: 23988,
+    priceMonthly: 119,
+    priceAnnual: 1190,
+    compareAtMonthly: null,
+    compareAtAnnual: 1428,
     periodLabel: "/ month",
     description: "Unlimited usage for established operations.",
     features: [
@@ -177,12 +184,12 @@ export function getPlanChecklist(planId: PaidPlanId): PlanChecklistItem[] {
     { id: "products", label: productLabel, included: true },
     {
       id: "inventory_gst",
-      label: "Inventory & GST invoices",
+      label: "Inventory & VAT tax invoices",
       included: capabilities.inventoryGst,
     },
     {
       id: "gstr_export",
-      label: "GSTR-1 / 3B ready exports",
+      label: "VAT 201 ready exports",
       included: capabilities.gstrExport,
     },
     {
@@ -215,23 +222,23 @@ export function getPlanChecklist(planId: PaidPlanId): PlanChecklistItem[] {
 
 export function getPlanPrice(plan: PlanDefinition, interval: BillingInterval): PlanPriceView {
   if (interval === "annual") {
-    const price = plan.priceAnnualInr;
+    const price = plan.priceAnnual;
     const compareAt =
-      plan.compareAtAnnualInr != null && plan.compareAtAnnualInr > price
-        ? plan.compareAtAnnualInr
+      plan.compareAtAnnual != null && plan.compareAtAnnual > price
+        ? plan.compareAtAnnual
         : null;
     return {
       price,
       compareAt,
-      perMonth: Math.round(price / 12),
+      perMonth: Math.round((price / 12) * 100) / 100,
       periodSuffix: "/ year",
     };
   }
 
-  const price = plan.priceInr;
+  const price = plan.priceMonthly;
   const compareAt =
-    plan.compareAtMonthlyInr != null && plan.compareAtMonthlyInr > price
-      ? plan.compareAtMonthlyInr
+    plan.compareAtMonthly != null && plan.compareAtMonthly > price
+      ? plan.compareAtMonthly
       : null;
   return {
     price,
@@ -275,7 +282,7 @@ export function capabilityUpgradeMessage(capability: keyof PlanCapabilities): st
     case "multiWarehouse":
       return "Multiple warehouses are available on the Business plan - upgrade at Settings → Billing.";
     case "gstrExport":
-      return "GSTR exports are not included on your current plan - upgrade at Settings → Billing.";
+      return "VAT return exports are not included on your current plan - upgrade at Settings → Billing.";
     case "prioritySupport":
       return "Priority support is available on Pro and Business - upgrade at Settings → Billing.";
     case "dedicatedSupport":
@@ -305,10 +312,11 @@ export function mapRazorpayPlanIdToTier(razorpayPlanId: string | undefined | nul
   return null;
 }
 
-export function formatInr(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
+export function formatPlanPrice(amount: number): string {
+  return new Intl.NumberFormat("en-AE", {
     style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
+    currency: PLAN_CURRENCY,
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }

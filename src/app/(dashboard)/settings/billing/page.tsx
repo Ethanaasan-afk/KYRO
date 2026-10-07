@@ -15,6 +15,7 @@ import { formatDate } from "@/lib/utils";
 import Script from "next/script";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
+import { APP_NAME, BRAND_COLORS } from "@/lib/brand";
 
 declare global {
   interface Window {
@@ -85,10 +86,10 @@ export default function BillingPage() {
         const rzp = new window.Razorpay({
           key: json.keyId,
           subscription_id: json.subscriptionId,
-          name: "AasanBill",
+          name: APP_NAME,
           description: `${json.planName ?? plan} subscription`,
           prefill: json.prefill ?? {},
-          theme: { color: "#0d9488" },
+          theme: { color: BRAND_COLORS.primary },
           handler: () => {
             toast("Payment submitted - activating your plan…", "success");
             void qc.invalidateQueries({ queryKey: ["organization"] });

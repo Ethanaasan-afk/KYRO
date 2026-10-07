@@ -18,7 +18,7 @@ export function presentEmail(value: unknown): string | null {
 
 /**
  * Address block: join non-empty address / city / state with ", ",
- * then append " - {pincode}" only when a pincode exists.
+ * then append " - P.O. Box {pincode}" only when one exists.
  */
 export function formatCompanyAddress(parts: {
   address?: string | null;
@@ -30,22 +30,25 @@ export function formatCompanyAddress(parts: {
     .filter((p): p is string => Boolean(p))
     .join(", ");
   const pin = presentText(parts.pincode);
-  if (locality && pin) return `${locality} - ${pin}`;
-  return locality || pin || "";
+  const box = pin ? `P.O. Box ${pin}` : null;
+  if (locality && box) return `${locality} - ${box}`;
+  return locality || box || "";
 }
 
 /**
- * Contact line: only include GSTIN / Ph / email when values exist.
+ * Contact line: only include TRN / Ph / email when values exist.
  * Returns "" when nothing to show (caller should omit the row).
  */
 export function formatCompanyContact(parts: {
-  gstin?: string | null;
+  tax_id?: string | null;
+  /** Label for the registration number, e.g. "TRN" */
+  taxIdLabel?: string;
   phone?: string | null;
   email?: string | null;
 }): string {
   const chunks: string[] = [];
-  const gstin = presentText(parts.gstin);
-  if (gstin) chunks.push(`GSTIN: ${gstin}`);
+  const taxId = presentText(parts.tax_id);
+  if (taxId) chunks.push(`${parts.taxIdLabel ?? "TRN"}: ${taxId}`);
   const phone = presentText(parts.phone);
   if (phone) chunks.push(`Ph: ${phone}`);
   const email = presentEmail(parts.email);
@@ -57,16 +60,16 @@ export function formatCompanyContact(parts: {
 export function formatCompanyBankLine(parts: {
   bank_name?: string | null;
   bank_account?: string | null;
-  bank_ifsc?: string | null;
+  bank_swift?: string | null;
   bank_branch?: string | null;
 }): string {
   const chunks: string[] = [];
   const name = presentText(parts.bank_name);
   if (name) chunks.push(name);
   const account = presentText(parts.bank_account);
-  if (account) chunks.push(`A/c ${account}`);
-  const ifsc = presentText(parts.bank_ifsc);
-  if (ifsc) chunks.push(`IFSC ${ifsc}`);
+  if (account) chunks.push(`IBAN ${account}`);
+  const swift = presentText(parts.bank_swift);
+  if (swift) chunks.push(`SWIFT ${swift}`);
   const branch = presentText(parts.bank_branch);
   if (branch) chunks.push(branch);
   return chunks.length ? `Bank: ${chunks.join(" · ")}` : "";

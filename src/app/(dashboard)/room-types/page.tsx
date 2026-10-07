@@ -17,7 +17,7 @@ import {
 } from "@/hooks/use-hotel";
 import { ROOM_STATUS_LABELS } from "@/lib/hotel";
 import type { HotelRoom, RoomStatus, RoomType } from "@/lib/types";
-import { formatINR } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -27,7 +27,7 @@ const emptyType = {
   description: "",
   sac_code: "",
   base_price: "0",
-  gst_rate: "12",
+  vat_rate: "5",
   max_occupancy: "2",
   is_active: true,
 };
@@ -75,7 +75,7 @@ export default function RoomTypesPage() {
       description: t.description ?? "",
       sac_code: t.sac_code ?? "",
       base_price: String(t.base_price),
-      gst_rate: String(t.gst_rate),
+      vat_rate: String(t.vat_rate),
       max_occupancy: String(t.max_occupancy),
       is_active: t.is_active,
     });
@@ -92,7 +92,7 @@ export default function RoomTypesPage() {
         id: editingType?.id,
         ...typeForm,
         base_price: Number(typeForm.base_price) || 0,
-        gst_rate: Number(typeForm.gst_rate) || 0,
+        vat_rate: Number(typeForm.vat_rate) || 0,
         max_occupancy: Math.max(1, Number(typeForm.max_occupancy) || 1),
         name: typeForm.name.trim(),
       });
@@ -183,8 +183,9 @@ export default function RoomTypesPage() {
                       <p className="mt-1 text-sm text-slate">{t.description}</p>
                     ) : null}
                     <p className="mt-2 font-mono text-xs text-slate">
-                      {formatINR(Number(t.base_price))}/night · GST {Number(t.gst_rate)}% · Max{" "}
-                      {t.max_occupancy} · SAC {t.sac_code || "—"}
+                      {formatCurrency(Number(t.base_price))}/night · VAT {Number(t.vat_rate)}% · Max{" "}
+                      {t.max_occupancy}
+                      {t.sac_code ? ` · Code ${t.sac_code}` : ""}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -249,19 +250,19 @@ export default function RoomTypesPage() {
           />
           <div>
             <Input
-              label="SAC Code"
+              label="Tariff code (optional)"
               value={typeForm.sac_code}
               onChange={(e) => setTypeForm((f) => ({ ...f, sac_code: e.target.value }))}
-              placeholder="e.g. 996311"
+              placeholder="Internal code"
             />
             <p className="mt-1 text-[11px] leading-relaxed text-slate">
-              Services Accounting Code — accommodation services generally fall under SAC group
-              9963; confirm the exact code for your tariff category.
+              Hotel stays are standard rated at 5% VAT. Municipality fees and Tourism Dirham are
+              not added automatically - bill them as separate lines if they apply.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Input
-              label="Rate / night (excl. GST)"
+              label="Rate / night (excl. VAT)"
               type="number"
               min={0}
               step="0.01"
@@ -269,12 +270,12 @@ export default function RoomTypesPage() {
               onChange={(e) => setTypeForm((f) => ({ ...f, base_price: e.target.value }))}
             />
             <Input
-              label="GST %"
+              label="VAT %"
               type="number"
               min={0}
               step="0.01"
-              value={typeForm.gst_rate}
-              onChange={(e) => setTypeForm((f) => ({ ...f, gst_rate: e.target.value }))}
+              value={typeForm.vat_rate}
+              onChange={(e) => setTypeForm((f) => ({ ...f, vat_rate: e.target.value }))}
             />
             <Input
               label="Max occupancy"

@@ -1,4 +1,4 @@
-/** Internal margin vs base_price - never used for invoices or GST. */
+/** Internal margin vs base_price - never used for invoices or VAT. */
 
 export type MarginTone = "emerald" | "amber" | "rose";
 
@@ -33,9 +33,9 @@ export const MARGIN_BADGE_CLASS: Record<MarginTone, string> = {
   rose: "bg-rose-soft text-coral-deep",
 };
 
-/** UI helper - base excl. GST + GST%. Not stored. */
-export function priceWithGst(baseExclGst: number, gstRate: number): number {
-  const base = Number(baseExclGst) || 0;
-  const rate = Number(gstRate) || 0;
+/** UI helper - base excl. VAT + VAT%. Not stored. */
+export function priceWithVat(baseExclVat: number, vatRate: number): number {
+  const base = Number(baseExclVat) || 0;
+  const rate = Number(vatRate) || 0;
   return base + (base * rate) / 100;
 }

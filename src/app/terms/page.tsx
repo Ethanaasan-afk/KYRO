@@ -4,6 +4,8 @@ import {
   APP_TITLE,
   LEGAL_ENTITY_ADDRESS,
   LEGAL_ENTITY_NAME,
+  LEGAL_GOVERNING_LAW,
+  LEGAL_JURISDICTION,
   LEGAL_SUPPORT_EMAIL,
   LEGAL_TERMS_UPDATED,
 } from "@/lib/brand";
@@ -39,8 +41,8 @@ export default function TermsOfServicePage() {
 
       <LegalSection id="description" title="2. Description of Service">
         <p>
-          {APP_NAME} is a cloud-based billing, GST invoicing, and inventory
-          management tool for small and medium businesses in India. {APP_NAME}{" "}
+          {APP_NAME} is a cloud-based billing, VAT invoicing, and inventory
+          management tool for small and medium businesses in the UAE. {APP_NAME}{" "}
           provides software tools; it does not provide legal, tax, or accounting
           advice.
         </p>
@@ -48,11 +50,11 @@ export default function TermsOfServicePage() {
           <strong>
             You are solely responsible for the accuracy of the tax, pricing, and
             business information you enter, and for your own compliance with
-            applicable GST and other tax laws.
+            applicable VAT and other tax laws.
           </strong>{" "}
           {APP_NAME} helps calculate and format invoices based on the information
-          you provide, but does not verify the correctness of your GSTIN, HSN
-          codes, or tax classifications.
+          you provide, but does not verify the correctness of your TRN, VAT rates,
+          or tax classifications.
         </p>
       </LegalSection>
 
@@ -187,7 +189,7 @@ export default function TermsOfServicePage() {
           </li>
           <li>
             We are not responsible for penalties, fines, or losses arising from
-            incorrect tax filings, GST errors, or business decisions made using
+            incorrect tax filings, VAT errors, or business decisions made using
             data generated through {APP_NAME} - you remain responsible for
             verifying accuracy before relying on any invoice or report for tax
             filing purposes.
@@ -231,10 +233,10 @@ export default function TermsOfServicePage() {
 
       <LegalSection id="law" title="12. Governing Law and Dispute Resolution">
         <p>
-          These Terms are governed by the laws of India. Any disputes arising
-          from these Terms or your use of the Service shall be subject to the
-          exclusive jurisdiction of the courts in{" "}
-          <strong>Ahmedabad, Gujarat</strong>.
+          These Terms are governed by the laws of{" "}
+          <strong>{LEGAL_GOVERNING_LAW}</strong>. Any disputes arising from these
+          Terms or your use of the Service shall be subject to the exclusive
+          jurisdiction of the courts of <strong>{LEGAL_JURISDICTION}</strong>.
         </p>
       </LegalSection>
 

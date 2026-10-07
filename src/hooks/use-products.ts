@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchProductStock, fetchProductStockMap } from "@/lib/stock";
 import type { Product } from "@/lib/types";
 import { useOrgAccess } from "@/hooks/use-org-access";
+import { normalizeVatCategory } from "@/lib/vat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 /** Unused DB columns - never read/write from app UI. */
@@ -46,7 +47,11 @@ async function fetchProducts(): Promise<Product[]> {
       base_price: Number(p.base_price),
       manufacturing_cost:
         p.manufacturing_cost != null ? Number(p.manufacturing_cost) : null,
-      gst_rate: Number(p.gst_rate),
+      vat_rate: Number(p.vat_rate ?? 0),
+      vat_category: normalizeVatCategory(p.vat_category, Number(p.vat_rate ?? 0)),
+      unit: p.unit ?? "pcs",
+      subcategory: p.subcategory ?? null,
+      reorder_threshold: Number(p.reorder_threshold ?? 0),
       current_stock: stockMap.get(p.id) ?? 0,
     } as Product;
   });
@@ -80,7 +85,11 @@ export function useProduct(id: string) {
         base_price: Number(data.base_price),
         manufacturing_cost:
           data.manufacturing_cost != null ? Number(data.manufacturing_cost) : null,
-        gst_rate: Number(data.gst_rate),
+        vat_rate: Number(data.vat_rate ?? 0),
+        vat_category: normalizeVatCategory(data.vat_category, Number(data.vat_rate ?? 0)),
+        unit: data.unit ?? "pcs",
+        subcategory: data.subcategory ?? null,
+        reorder_threshold: Number(data.reorder_threshold ?? 0),
         current_stock,
       } as Product;
     },
@@ -109,6 +118,7 @@ export function useProductMutations() {
         exp_date: payload.exp_date || null,
         imei_serial: payload.imei_serial || null,
         batch_number: payload.batch_number || null,
+        subcategory: payload.subcategory?.trim() || null,
         is_service: Boolean(payload.is_service),
         manufacturing_cost:
           payload.manufacturing_cost === undefined || payload.manufacturing_cost === null
@@ -130,7 +140,7 @@ export function useProductMutations() {
           .select()
           .single();
         
-        if (error && /imei_serial|batch_number|is_service|metal_type|purity|huid|gross_weight|net_weight|making_charge|stone_value|wastage_percent|schema cache|Could not find the .* column/i.test(error.message)) {
+        if (error && /imei_serial|batch_number|is_service|metal_type|purity|huid|gross_weight|net_weight|making_charge|stone_value|wastage_percent|subcategory|'unit'|schema cache|Could not find the .* column/i.test(error.message)) {
           // FIX: Removed unused destructuring variables and used delete instead
           const withoutExtras = { ...rest } as Record<string, unknown>;
           delete withoutExtras.imei_serial;
@@ -145,6 +155,8 @@ export function useProductMutations() {
           delete withoutExtras.making_charge_value;
           delete withoutExtras.stone_value;
           delete withoutExtras.wastage_percent;
+          delete withoutExtras.unit;
+          delete withoutExtras.subcategory;
 
           const retry = await supabase
             .from("products")
@@ -170,7 +182,7 @@ export function useProductMutations() {
         .select()
         .single();
         
-      if (error && /imei_serial|batch_number|is_service|metal_type|purity|huid|gross_weight|net_weight|making_charge|stone_value|wastage_percent|schema cache|Could not find the .* column/i.test(error.message)) {
+      if (error && /imei_serial|batch_number|is_service|metal_type|purity|huid|gross_weight|net_weight|making_charge|stone_value|wastage_percent|subcategory|'unit'|schema cache|Could not find the .* column/i.test(error.message)) {
         // FIX: Removed unused destructuring variables and used delete instead
         const withoutExtras = { ...rest } as Record<string, unknown>;
         delete withoutExtras.imei_serial;
@@ -185,6 +197,8 @@ export function useProductMutations() {
         delete withoutExtras.making_charge_value;
         delete withoutExtras.stone_value;
         delete withoutExtras.wastage_percent;
+        delete withoutExtras.unit;
+        delete withoutExtras.subcategory;
 
         const retry = await supabase
           .from("products")

@@ -16,7 +16,7 @@ import {
 } from "@/hooks/use-hotel";
 import { BOOKING_STATUS_LABELS, bookingNights, isActiveBookingStatus } from "@/lib/hotel";
 import type { RoomBooking, RoomBookingStatus } from "@/lib/types";
-import { formatDate, formatINR } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { addDays, eachDayOfInterval, format, parseISO, startOfDay } from "date-fns";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -283,7 +283,7 @@ export default function BookingsPage() {
                       <td className="font-mono text-xs">
                         {nights}
                         {rate > 0 ? (
-                          <span className="ml-1 text-slate">· {formatINR(rate * nights)}</span>
+                          <span className="ml-1 text-slate">· {formatCurrency(rate * nights)}</span>
                         ) : null}
                       </td>
                       <td>

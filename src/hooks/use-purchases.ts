@@ -3,7 +3,8 @@
 import { useAuth } from "@/components/auth-provider";
 import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
-import { calcInvoiceTotals } from "@/lib/gst";
+import { calcInvoiceTotals, normalizeVatCategory } from "@/lib/vat";
+import { getDefaultCurrency } from "@/lib/utils";
 import { requireOrganizationId } from "@/lib/org";
 import { createClient } from "@/lib/supabase/client";
 import type { Purchase } from "@/lib/types";
@@ -31,9 +32,8 @@ function mapPurchase(row: Record<string, unknown>): Purchase {
   return {
     ...(row as unknown as Purchase),
     subtotal: Number(row.subtotal),
-    total_cgst: Number(row.total_cgst),
-    total_sgst: Number(row.total_sgst),
-    total_igst: Number(row.total_igst),
+    total_vat: Number(row.total_vat),
+    currency: String(row.currency ?? "INR"),
     round_off: Number(row.round_off),
     grand_total: Number(row.grand_total),
   };
@@ -79,16 +79,16 @@ export function usePurchaseMutations() {
 
       const { data: products, error: pErr } = await supabase
         .from("products")
-        .select("id, name, hsn_code, gst_rate")
+        .select("id, name, hsn_code, vat_rate, vat_category")
         .in(
           "id",
           payload.items.map((i) => i.product_id)
         );
       if (pErr) throw pErr;
 
-      const { data: supplier, error: sErr } = await supabase
+      const { error: sErr } = await supabase
         .from("suppliers")
-        .select("*")
+        .select("id")
         .eq("id", payload.supplier_id)
         .single();
       if (sErr) throw sErr;
@@ -99,10 +99,11 @@ export function usePurchaseMutations() {
         return {
           quantity: item.quantity,
           unitPrice: item.unit_cost,
-          gstRate: Number(product.gst_rate),
+          vatRate: Number(product.vat_rate),
+          vatCategory: normalizeVatCategory(product.vat_category, Number(product.vat_rate)),
         };
       });
-      const totals = calcInvoiceTotals(lineInputs, supplier.state);
+      const totals = calcInvoiceTotals(lineInputs);
 
       const { data: purchaseNumber, error: nErr } = await supabase.rpc(
         "next_purchase_number",
@@ -118,9 +119,8 @@ export function usePurchaseMutations() {
           warehouse_id: payload.warehouse_id || null,
           purchase_date: payload.purchase_date,
           subtotal: totals.subtotal,
-          total_cgst: totals.totalCgst,
-          total_sgst: totals.totalSgst,
-          total_igst: totals.totalIgst,
+          total_vat: totals.totalVat,
+          currency: getDefaultCurrency(),
           round_off: totals.roundOff,
           grand_total: totals.grandTotal,
           status: "received",
@@ -142,10 +142,8 @@ export function usePurchaseMutations() {
           quantity: item.quantity,
           unit_cost: item.unit_cost,
           taxable_value: line.taxableValue,
-          gst_rate: Number(product.gst_rate),
-          cgst_amount: line.cgstAmount,
-          sgst_amount: line.sgstAmount,
-          igst_amount: line.igstAmount,
+          vat_rate: line.vatRate,
+          vat_amount: line.vatAmount,
           line_total: line.lineTotal,
           batch_number: item.batch_number || null,
           mfg_date: item.mfg_date || null,

@@ -3,7 +3,7 @@
 import { useAuth } from "@/components/auth-provider";
 import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
-import { calcInvoiceTotals } from "@/lib/gst";
+import { calcInvoiceTotals, normalizeVatCategory } from "@/lib/vat";
 import { requireOrganizationId } from "@/lib/org";
 import { createClient } from "@/lib/supabase/client";
 import type { CreditNote, Invoice } from "@/lib/types";
@@ -27,9 +27,8 @@ function mapCreditNote(row: Record<string, unknown>): CreditNote {
   return {
     ...(row as unknown as CreditNote),
     subtotal: Number(row.subtotal),
-    total_cgst: Number(row.total_cgst),
-    total_sgst: Number(row.total_sgst),
-    total_igst: Number(row.total_igst),
+    total_vat: Number(row.total_vat),
+    currency: String(row.currency ?? "INR"),
     round_off: Number(row.round_off),
     grand_total: Number(row.grand_total),
   };
@@ -123,10 +122,14 @@ export function useCreditNoteMutations() {
         return {
           quantity: item.quantity,
           unitPrice: item.unit_price,
-          gstRate: orig.gst_rate,
+          vatRate: Number(orig.vat_rate),
+          vatCategory: normalizeVatCategory(orig.vat_category, Number(orig.vat_rate)),
         };
       });
-      const totals = calcInvoiceTotals(lineInputs, inv.customer?.state ?? "Gujarat");
+      // Mirror the original invoice: same rates, same inclusive/exclusive pricing
+      const totals = calcInvoiceTotals(lineInputs, {
+        pricesIncludeVat: !!inv.prices_include_vat,
+      });
 
       const { data: cnNumber, error: nErr } = await supabase.rpc(
         "next_credit_note_number",
@@ -143,9 +146,8 @@ export function useCreditNoteMutations() {
           warehouse_id: inv.warehouse_id ?? null,
           credit_date: payload.credit_date,
           subtotal: totals.subtotal,
-          total_cgst: totals.totalCgst,
-          total_sgst: totals.totalSgst,
-          total_igst: totals.totalIgst,
+          total_vat: totals.totalVat,
+          currency: inv.currency,
           round_off: totals.roundOff,
           grand_total: totals.grandTotal,
           reason: payload.reason || null,
@@ -167,10 +169,8 @@ export function useCreditNoteMutations() {
           quantity: item.quantity,
           unit_price: item.unit_price,
           taxable_value: line.taxableValue,
-          gst_rate: orig.gst_rate,
-          cgst_amount: line.cgstAmount,
-          sgst_amount: line.sgstAmount,
-          igst_amount: line.igstAmount,
+          vat_rate: line.vatRate,
+          vat_amount: line.vatAmount,
           line_total: line.lineTotal,
           organization_id: orgId,
         };

@@ -13,7 +13,7 @@ import { usePurchaseMutations } from "@/hooks/use-purchases";
 import { usePurchases } from "@/hooks/use-purchases";
 import { useSuppliers } from "@/hooks/use-suppliers";
 import { useWarehouses } from "@/hooks/use-warehouses";
-import { formatDate, formatINR } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -63,12 +63,12 @@ export default function PurchasesPage() {
         <PageHeader
           eyebrow="Purchases"
           title="Purchases"
-          description="Stock-in from suppliers with GST"
+          description="Stock-in from suppliers with input VAT"
         />
         <PlanUpgradeBanner
           requiredPlan="Pro"
           title="Purchases are on Pro and Business"
-          description="Record supplier bills, update stock, and manage purchase GST. Upgrade to unlock purchases, suppliers, and credit notes."
+          description="Record supplier bills, update stock, and track recoverable input VAT. Upgrade to unlock purchases, suppliers, and credit notes."
         />
       </div>
     );
@@ -198,7 +198,8 @@ export default function PurchasesPage() {
                 <Input
                   label={idx === 0 ? "Qty" : undefined}
                   type="number"
-                  min={1}
+                  min={0}
+                  step="any"
                   value={line.quantity}
                   onChange={(e) =>
                     setLines((prev) =>
@@ -279,7 +280,7 @@ export default function PurchasesPage() {
                   <td>{formatDate(p.purchase_date)}</td>
                   <td>{p.supplier?.name ?? "-"}</td>
                   <td>{p.warehouse?.name ?? "-"}</td>
-                  <td className="num">{formatINR(p.grand_total)}</td>
+                  <td className="num">{formatCurrency(p.grand_total)}</td>
                   <td>
                     <Badge variant={p.status === "received" ? "success" : "danger"}>
                       {p.status}

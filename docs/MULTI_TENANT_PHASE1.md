@@ -18,7 +18,7 @@ Service role key must be set for `/api/auth/signup` and `/api/users/invite` (`SU
 
 ## Verification checklist
 
-1. **AURA admin** — log in; products, customers, invoices still present.
+1. **Admin** — log in; products, customers, invoices still present.
 2. **New business** — open `/signup`, create a test org; lists should be empty; Settings shows the new business name.
 3. **Isolation** — as Org B, you must not see Org A data (Network tab / empty queries). Invite a staff user into Org A; they see only Org A.
 4. **Trial** — set `trial_ends_at` to the past and `subscription_status = 'trialing'` on a test org; banner appears and create actions toast an error.

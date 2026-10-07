@@ -21,3 +21,11 @@ export function invoiceStatusFromPaid(
 export function invoiceAmountDue(grandTotal: number, amountPaid: number): number {
   return Math.max(0, round2(grandTotal - Math.max(0, amountPaid)));
 }
+
+/** Human labels for invoice statuses (never show raw ids like "partially_paid"). */
+export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  issued: "Unpaid",
+  paid: "Paid",
+  partially_paid: "Part paid",
+  cancelled: "Void",
+};

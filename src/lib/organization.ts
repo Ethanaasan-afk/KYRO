@@ -1,5 +1,7 @@
 import type { CompanySettings, Organization } from "@/lib/types";
 import { normalizeBusinessType } from "@/lib/business-types";
+import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
+import { DEFAULT_COUNTRY, getCountryConfig, normalizeTaxId } from "@/lib/vat/countries";
 
 /** Map Organization → CompanySettings so PDF / Settings keep working unchanged. */
 export function organizationToCompanySettings(org: Organization): CompanySettings {
@@ -8,7 +10,10 @@ export function organizationToCompanySettings(org: Organization): CompanySetting
     organization_id: org.id,
     company_name: org.name,
     brand_name: org.brand_name || org.name,
-    gstin: org.gstin ?? "",
+    tax_id: org.tax_id ?? "",
+    country: org.country || DEFAULT_COUNTRY,
+    currency: org.currency || getCountryConfig(org.country).currency,
+    prices_include_vat: Boolean(org.prices_include_vat),
     address: org.address ?? "",
     city: org.city ?? "",
     state: org.state,
@@ -17,10 +22,9 @@ export function organizationToCompanySettings(org: Organization): CompanySetting
     email: org.email || "admin@example.com",
     bank_name: org.bank_name ?? "",
     bank_account: org.bank_account ?? "",
-    bank_ifsc: org.bank_ifsc ?? "",
+    bank_swift: org.bank_ifsc ?? "",
     bank_branch: org.bank_branch ?? "",
-    invoice_prefix: org.invoice_prefix || "AB",
-    upi_id: org.upi_id ?? "",
+    invoice_prefix: org.invoice_prefix || DEFAULT_INVOICE_PREFIX,
     signature_url: org.signature_url ?? null,
     updated_at: org.updated_at || org.created_at,
     slug: org.slug,
@@ -38,7 +42,12 @@ export function companySettingsToOrganizationPatch(
   const patch: Partial<Organization> = {};
   if (values.company_name !== undefined) patch.name = values.company_name;
   if (values.brand_name !== undefined) patch.brand_name = values.brand_name;
-  if (values.gstin !== undefined) patch.gstin = values.gstin || null;
+  if (values.tax_id !== undefined) patch.tax_id = normalizeTaxId(values.tax_id) || null;
+  if (values.country !== undefined) {
+    patch.country = values.country;
+    patch.currency = getCountryConfig(values.country).currency;
+  }
+  if (values.prices_include_vat !== undefined) patch.prices_include_vat = values.prices_include_vat;
   if (values.address !== undefined) patch.address = values.address || null;
   if (values.city !== undefined) patch.city = values.city;
   if (values.state !== undefined) patch.state = values.state;
@@ -47,10 +56,9 @@ export function companySettingsToOrganizationPatch(
   if (values.email !== undefined) patch.email = values.email;
   if (values.bank_name !== undefined) patch.bank_name = values.bank_name;
   if (values.bank_account !== undefined) patch.bank_account = values.bank_account;
-  if (values.bank_ifsc !== undefined) patch.bank_ifsc = values.bank_ifsc;
+  if (values.bank_swift !== undefined) patch.bank_ifsc = values.bank_swift;
   if (values.bank_branch !== undefined) patch.bank_branch = values.bank_branch;
   if (values.invoice_prefix !== undefined) patch.invoice_prefix = values.invoice_prefix;
-  if (values.upi_id !== undefined) patch.upi_id = values.upi_id ?? "";
   if (values.signature_url !== undefined) {
     patch.signature_url = values.signature_url || null;
   }
@@ -62,13 +70,13 @@ export function companySettingsToOrganizationPatch(
   if (
     values.bank_name !== undefined ||
     values.bank_account !== undefined ||
-    values.bank_ifsc !== undefined ||
+    values.bank_swift !== undefined ||
     values.bank_branch !== undefined
   ) {
     const parts = [
       values.bank_name,
-      values.bank_account ? `A/c ${values.bank_account}` : "",
-      values.bank_ifsc ? `IFSC ${values.bank_ifsc}` : "",
+      values.bank_account ? `IBAN ${values.bank_account}` : "",
+      values.bank_swift ? `SWIFT ${values.bank_swift}` : "",
       values.bank_branch,
     ].filter(Boolean);
     patch.bank_details = parts.length ? parts.join(" · ") : null;

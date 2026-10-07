@@ -20,7 +20,7 @@ import {
   SILVER_PURITIES,
   type MetalType,
 } from "@/lib/jewellery";
-import { formatINR } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -78,7 +78,7 @@ export default function MetalRatesPage() {
         ...prev,
         [draftKey]: String(Math.round(rate * 100) / 100),
       }));
-      toast(`Copied ${formatINR(rate)}/g into shop rates - adjust then Save.`);
+      toast(`Copied ${formatCurrency(rate)}/g into shop rates - adjust then Save.`);
     },
     [toast]
   );
@@ -179,7 +179,7 @@ export default function MetalRatesPage() {
                 />
                 <span className="mt-1 block text-[11px] text-slate-dim">
                   {current
-                    ? `Last: ${formatINR(current.rate_per_gram)}/g · ${current.effective_date}`
+                    ? `Last: ${formatCurrency(current.rate_per_gram)}/g · ${current.effective_date}`
                     : "No rate yet"}
                 </span>
               </label>
@@ -230,7 +230,7 @@ export default function MetalRatesPage() {
                   <td className="px-4 py-2.5 text-ink">{formatMetalLabel(row.metal_type)}</td>
                   <td className="px-4 py-2.5 text-ink">{formatPurityLabel(row.purity)}</td>
                   <td className="px-4 py-2.5 font-mono text-ink">
-                    {formatINR(row.rate_per_gram)}
+                    {formatCurrency(row.rate_per_gram)}
                   </td>
                 </tr>
               ))}

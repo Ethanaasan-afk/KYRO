@@ -6,7 +6,7 @@ import {
   type LiveMetalRateRow,
   type LiveRateChange,
 } from "@/lib/live-metal-rates";
-import { cn, formatINR } from "@/lib/utils";
+import { cn, formatCurrency, getDefaultCurrency } from "@/lib/utils";
 import { LiveLineChart } from "@/components/charts/studio-charts";
 import { format, parseISO } from "date-fns";
 import { Copy } from "lucide-react";
@@ -191,7 +191,7 @@ export function LiveMarketReferencePanel({
                       </p>
                       <div className="mt-1 flex flex-wrap items-end gap-2">
                         <p className="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-                          {row ? formatINR(Number(row.rate_per_gram_inr)) : "-"}
+                          {row ? formatCurrency(Number(row.rate_per_gram_inr)) : "-"}
                           <span className="ml-1 text-sm font-medium text-slate">
                             {rateUnit(heroSlot.metal_type)}
                           </span>
@@ -244,7 +244,7 @@ export function LiveMarketReferencePanel({
                       </p>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <p className="font-display text-lg font-semibold text-ink">
-                          {row ? formatINR(Number(row.rate_per_gram_inr)) : "-"}
+                          {row ? formatCurrency(Number(row.rate_per_gram_inr)) : "-"}
                           <span className="ml-1 text-xs font-medium text-slate">
                             {rateUnit(slot.metal_type)}
                           </span>
@@ -300,7 +300,7 @@ export function LiveMarketReferencePanel({
                   color: s.color,
                   label: s.label,
                 }))}
-                unit="₹/g"
+                unit={`${getDefaultCurrency()}/g`}
               />
             </div>
           </div>

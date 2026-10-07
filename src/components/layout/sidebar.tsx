@@ -19,7 +19,7 @@ import {
   ShoppingCart,
   Undo2,
   CreditCard,
-  IndianRupee,
+  Banknote,
   Gem,
   CalendarRange,
   BedDouble,
@@ -90,7 +90,7 @@ const billingNav: {
     tourId: "tour-warehouses",
   },
   { href: "/customers", label: "Customers", icon: Users, tourId: "tour-customers" },
-  { href: "/outstanding", label: "Outstanding", icon: IndianRupee, tourId: "tour-outstanding" },
+  { href: "/outstanding", label: "Outstanding", icon: Banknote, tourId: "tour-outstanding" },
   {
     href: "/suppliers",
     label: "Suppliers",
@@ -290,7 +290,7 @@ export function Sidebar() {
 
       <div className="mt-auto shrink-0 border-t border-sidebar-border bg-[var(--sidebar)] pt-4">
         <div className="mb-1 flex items-center gap-2.5 rounded-[10px] px-2 py-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-blue-dark)] to-[var(--brand-blue-light)] text-xs font-semibold text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-purple-dark)] to-[var(--brand-purple-light)] text-xs font-semibold text-white">
             {initial}
           </div>
           <div className="min-w-0">

@@ -9,6 +9,7 @@ import {
 } from "@/lib/invoice-short-link";
 import { invoiceShareMessage, whatsappShareUrl } from "@/lib/whatsapp";
 import { NextResponse } from "next/server";
+import { APP_NAME } from "@/lib/brand";
 
 export async function POST(
   request: Request,
@@ -52,7 +53,7 @@ export async function POST(
     const { data: invoice, error: invErr } = await admin
       .from("invoices")
       .select(
-        "id, invoice_number, grand_total, status, organization_id, short_code, customer:customers(id, name, phone)"
+        "id, invoice_number, grand_total, currency, status, organization_id, short_code, customer:customers(id, name, phone)"
       )
       .eq("id", invoiceId)
       .eq("organization_id", profile.organization_id)
@@ -64,7 +65,7 @@ export async function POST(
 
     const { data: org } = await admin
       .from("organizations")
-      .select("company_name, brand_name, upi_id")
+      .select("name, brand_name")
       .eq("id", profile.organization_id)
       .single();
 
@@ -105,13 +106,13 @@ export async function POST(
     const downloadUrl = invoicePublicDownloadUrl(shortCode, request);
 
     const amountDue = invoice.status === "paid" ? 0 : Number(invoice.grand_total);
-    const companyName = org?.brand_name || org?.company_name || "AasanBill";
+    const companyName = org?.brand_name || org?.name || APP_NAME;
     const message = invoiceShareMessage({
       companyName,
       invoiceNumber: invoice.invoice_number,
       amount: amountDue,
       customerName,
-      upiId: org?.upi_id,
+      currency: invoice.currency,
       pdfUrl: downloadUrl,
     });
 

@@ -151,7 +151,7 @@ export default function LoginPage() {
         className="pointer-events-none absolute inset-0 opacity-90"
         style={{
           background:
-            "radial-gradient(ellipse 80% 50% at 20% -10%, rgba(79,70,229,0.18), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(16,185,129,0.12), transparent)",
+            "radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124,28,240,0.18), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(182,92,255,0.12), transparent)",
         }}
       />
       <div className="panel relative w-full max-w-sm p-5 sm:p-8">

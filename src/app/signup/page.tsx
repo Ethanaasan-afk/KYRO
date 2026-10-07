@@ -137,7 +137,7 @@ export default function SignupPage() {
         className="pointer-events-none absolute inset-0 opacity-90"
         style={{
           background:
-            "radial-gradient(ellipse 80% 50% at 20% -10%, rgba(29,78,216,0.18), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(56,189,248,0.12), transparent)",
+            "radial-gradient(ellipse 80% 50% at 20% -10%, rgba(124,28,240,0.18), transparent), radial-gradient(ellipse 60% 40% at 100% 100%, rgba(182,92,255,0.12), transparent)",
         }}
       />
       <div className="panel relative w-full max-w-md p-5 sm:p-8">
@@ -173,7 +173,7 @@ export default function SignupPage() {
               onChange={(e) => setBusinessType(e.target.value as BusinessType)}
               options={BUSINESS_TYPE_OPTIONS.map((o) => ({
                 value: o.value,
-                label: o.label,
+                label: `${o.emoji}  ${o.label}`,
               }))}
             />
             <p className="mt-1.5 text-[11px] text-slate">{selectedDesc}</p>

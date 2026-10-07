@@ -1,11 +1,12 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { VAT_CATEGORY_LABELS } from "@/lib/vat";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingBlock, PageHeader } from "@/components/ui/page-header";
 import { usePriceHistory, useProduct } from "@/hooks/use-products";
 import { useStockMovements } from "@/hooks/use-inventory";
-import { formatDate, formatINR } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { productColor } from "@/lib/product-color";
 import { ProductSwatch, ProductTag } from "@/components/ui/product-swatch";
 import Link from "next/link";
@@ -42,8 +43,11 @@ export default function ProductDetailPage() {
       </div>
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="SKU" value={product.sku} mono />
-        <Stat label="Base price" value={formatINR(product.base_price)} />
-        <Stat label="GST" value={`${product.gst_rate}%`} />
+        <Stat label="Base price" value={formatCurrency(product.base_price)} />
+        <Stat
+          label="VAT"
+          value={product.vat_category === "standard" ? `${product.vat_rate}%` : VAT_CATEGORY_LABELS[product.vat_category]}
+        />
         <Stat
           label="Current stock"
           value={String(product.current_stock ?? 0)}
@@ -60,8 +64,8 @@ export default function ProductDetailPage() {
           <h2 className="mb-3 text-sm font-semibold">Details</h2>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <dt className="text-xs text-muted">HSN</dt>
-              <dd className="font-mono">{product.hsn_code}</dd>
+              <dt className="text-xs text-muted">Item code</dt>
+              <dd className="font-mono">{product.hsn_code || "-"}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted">Reorder at</dt>
@@ -82,7 +86,7 @@ export default function ProductDetailPage() {
               <dt className="text-xs text-muted">Mfg cost</dt>
               <dd className="font-mono">
                 {product.manufacturing_cost != null
-                  ? formatINR(product.manufacturing_cost)
+                  ? formatCurrency(product.manufacturing_cost)
                   : "-"}
               </dd>
             </div>
@@ -110,8 +114,8 @@ export default function ProductDetailPage() {
               {history.map((h) => (
                 <li key={h.id} className="flex justify-between border-b border-border/50 pb-2">
                   <span>
-                    {h.old_price != null ? formatINR(Number(h.old_price)) : "-"} →{" "}
-                    {formatINR(Number(h.new_price))}
+                    {h.old_price != null ? formatCurrency(Number(h.old_price)) : "-"} →{" "}
+                    {formatCurrency(Number(h.new_price))}
                   </span>
                   <span className="text-xs text-muted">{formatDate(h.changed_at)}</span>
                 </li>

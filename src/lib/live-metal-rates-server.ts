@@ -4,6 +4,7 @@ import {
   buildTimeseriesHistoryInserts,
   diamondIndexFromGold24,
   isLiveRatesStale,
+  LIVE_RATES_CURRENCY,
   withDiamondIndexRows,
   type LiveMetalRateRow,
   type MetalsDevLatestResponse,
@@ -51,7 +52,10 @@ async function insertLiveRateRows(
 ): Promise<LiveMetalRateRow[]> {
   if (!inserts.length) return [];
   const admin = createAdminClient();
-  const { data, error } = await admin.from("live_metal_rates").insert(inserts).select("*");
+  const { data, error } = await admin
+    .from("live_metal_rates")
+    .insert(inserts.map((r) => ({ ...r, currency: LIVE_RATES_CURRENCY })))
+    .select("*");
 
   if (error) {
     if (/relation .*live_metal_rates.* does not exist|Could not find the table/i.test(error.message)) {
@@ -77,7 +81,7 @@ export async function refreshLiveMetalRates(): Promise<{
 
   const url = new URL("https://api.metals.dev/v1/latest");
   url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("currency", "INR");
+  url.searchParams.set("currency", LIVE_RATES_CURRENCY);
   url.searchParams.set("unit", "toz");
 
   const res = await fetch(url.toString(), {
@@ -218,6 +222,7 @@ export async function getLatestLiveRates(): Promise<LiveMetalRateRow[]> {
   const { data, error } = await admin
     .from("live_metal_rates")
     .select("*")
+    .eq("currency", LIVE_RATES_CURRENCY)
     .order("fetched_at", { ascending: false })
     .limit(200);
   if (error) {
@@ -244,6 +249,7 @@ export async function getLiveRateHistory(days = 7): Promise<LiveMetalRateRow[]> 
   const { data, error } = await admin
     .from("live_metal_rates")
     .select("*")
+    .eq("currency", LIVE_RATES_CURRENCY)
     .gte("fetched_at", since.toISOString())
     .order("fetched_at", { ascending: true })
     .limit(2000);

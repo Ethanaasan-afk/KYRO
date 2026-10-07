@@ -86,7 +86,7 @@ async function main() {
   const failures = [];
   const passes = [];
 
-  console.log("AasanBill tenant isolation test");
+  console.log("NovaFlow tenant isolation test");
   console.log(`App ${APP}`);
   console.log(`A ${emailA}`);
   console.log(`B ${emailB}`);
@@ -145,7 +145,7 @@ async function main() {
         name: `${label} Customer`,
         phone: "9000000001",
         billing_address: "Street",
-        state: "Gujarat",
+        state: "Dubai",
         customer_type: "b2c",
         organization_id: orgId,
       })

@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState, LoadingBlock, PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
+import { Select } from "@/components/ui/select";
+import { UAE_EMIRATES } from "@/lib/vat/countries";
 import { useOrgAccess } from "@/hooks/use-org-access";
 import { useSupplierMutations, useSuppliers } from "@/hooks/use-suppliers";
 import type { Supplier } from "@/lib/types";
@@ -20,9 +22,9 @@ const empty = {
   name: "",
   phone: "",
   email: "",
-  gstin: "",
+  tax_id: "",
   address: "",
-  state: "Gujarat",
+  state: "",
   notes: "",
   is_active: true,
 };
@@ -46,7 +48,7 @@ export default function SuppliersPage() {
         !q ||
         s.name.toLowerCase().includes(q) ||
         (s.phone ?? "").includes(q) ||
-        (s.gstin ?? "").toLowerCase().includes(q)
+        (s.tax_id ?? "").toLowerCase().includes(q)
     );
   }, [suppliers, search]);
 
@@ -61,7 +63,7 @@ export default function SuppliersPage() {
         <PlanUpgradeBanner
           requiredPlan="Pro"
           title="Suppliers are on Pro and Business"
-          description="Manage supplier GST details for purchase bills. Upgrade to unlock purchases, suppliers, and credit notes."
+          description="Manage supplier TRNs for purchase bills. Upgrade to unlock purchases, suppliers, and credit notes."
         />
       </div>
     );
@@ -79,7 +81,7 @@ export default function SuppliersPage() {
       name: s.name,
       phone: s.phone ?? "",
       email: s.email ?? "",
-      gstin: s.gstin ?? "",
+      tax_id: s.tax_id ?? "",
       address: s.address ?? "",
       state: s.state,
       notes: s.notes ?? "",
@@ -99,7 +101,7 @@ export default function SuppliersPage() {
         name: form.name.trim(),
         phone: form.phone || null,
         email: form.email || null,
-        gstin: form.gstin || null,
+        tax_id: form.tax_id || null,
         address: form.address || null,
         state: form.state,
         notes: form.notes || null,
@@ -129,7 +131,7 @@ export default function SuppliersPage() {
       <SearchInput
         value={search}
         onChange={setSearch}
-        placeholder="Search name, phone, GSTIN…"
+        placeholder="Search name, phone, TRN…"
         className="mb-4 sm:max-w-xs"
       />
 
@@ -152,8 +154,8 @@ export default function SuppliersPage() {
               <tr>
                 <th>Name</th>
                 <th>Phone</th>
-                <th>State</th>
-                <th>GSTIN</th>
+                <th>Emirate</th>
+                <th>TRN</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -164,7 +166,7 @@ export default function SuppliersPage() {
                   <td className="font-medium">{s.name}</td>
                   <td className="font-mono text-xs">{s.phone ?? "-"}</td>
                   <td>{s.state}</td>
-                  <td className="font-mono text-xs">{s.gstin ?? "-"}</td>
+                  <td className="font-mono text-xs">{s.tax_id ?? "-"}</td>
                   <td>
                     <Badge variant={s.is_active ? "success" : "default"}>
                       {s.is_active ? "Active" : "Inactive"}
@@ -208,12 +210,15 @@ export default function SuppliersPage() {
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
             <Input
-              label="GSTIN"
-              value={form.gstin}
-              onChange={(e) => setForm((f) => ({ ...f, gstin: e.target.value }))}
+              label="TRN"
+              placeholder="15-digit TRN"
+              value={form.tax_id}
+              onChange={(e) => setForm((f) => ({ ...f, tax_id: e.target.value }))}
             />
-            <Input
-              label="State"
+            <Select
+              label="Emirate"
+              placeholder="Select emirate"
+              options={UAE_EMIRATES.map((e) => ({ value: e, label: e }))}
               value={form.state}
               onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
             />

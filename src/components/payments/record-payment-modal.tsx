@@ -11,8 +11,9 @@ import {
   type PaymentMode,
 } from "@/lib/constants";
 import { FormEvent, useEffect, useState } from "react";
+import { getDefaultCurrency } from "@/lib/utils";
 
-const MODES: PaymentMode[] = ["cash", "bank_transfer", "upi", "cheque"];
+const MODES: PaymentMode[] = ["cash", "card", "bank_transfer", "cheque"];
 
 export function RecordPaymentModal({
   open,
@@ -75,7 +76,7 @@ export function RecordPaymentModal({
     <Modal open={open} onClose={onClose} title={title} size="sm">
       <form onSubmit={onSubmit} className="space-y-4">
         <Input
-          label="Amount (₹)"
+          label={`Amount (${getDefaultCurrency()})`}
           type="number"
           min={0.01}
           step="0.01"

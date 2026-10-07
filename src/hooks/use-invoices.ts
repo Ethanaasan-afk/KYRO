@@ -4,7 +4,8 @@ import { useAuth } from "@/components/auth-provider";
 import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
 import { createClient } from "@/lib/supabase/client";
-import { calcInvoiceTotals } from "@/lib/gst";
+import { calcInvoiceTotals, normalizeVatCategory, type VatCategory } from "@/lib/vat";
+import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
 import { requireOrganizationId } from "@/lib/org";
 import { checkPlanLimit, planLimitErrorMessage } from "@/lib/billing/limits";
 import type { CreateInvoicePayload, Invoice, UpdateInvoicePayload } from "@/lib/types";
@@ -30,9 +31,7 @@ function normalizeRpcInvoice(data: unknown): Invoice {
   return {
     ...invoice,
     subtotal: Number(invoice.subtotal),
-    total_cgst: Number(invoice.total_cgst),
-    total_sgst: Number(invoice.total_sgst),
-    total_igst: Number(invoice.total_igst),
+    total_vat: Number(invoice.total_vat),
     round_off: Number(invoice.round_off),
     grand_total: Number(invoice.grand_total),
   };
@@ -42,19 +41,19 @@ function mapInvoiceRow(data: Record<string, unknown>): Invoice {
   return {
     ...data,
     subtotal: Number(data.subtotal),
-    total_cgst: Number(data.total_cgst),
-    total_sgst: Number(data.total_sgst),
-    total_igst: Number(data.total_igst),
+    total_vat: Number(data.total_vat),
+    currency: String(data.currency ?? "INR"),
     round_off: Number(data.round_off),
     grand_total: Number(data.grand_total),
+    amount_paid: Number(data.amount_paid ?? 0),
     items: ((data.items as Record<string, unknown>[]) ?? []).map((it) => ({
       ...it,
+      quantity: Number(it.quantity),
       unit_price: Number(it.unit_price),
       taxable_value: Number(it.taxable_value),
-      gst_rate: Number(it.gst_rate),
-      cgst_amount: Number(it.cgst_amount),
-      sgst_amount: Number(it.sgst_amount),
-      igst_amount: Number(it.igst_amount),
+      vat_rate: Number(it.vat_rate),
+      vat_amount: Number(it.vat_amount),
+      vat_category: normalizeVatCategory(it.vat_category, Number(it.vat_rate)),
       line_total: Number(it.line_total),
     })),
   } as Invoice;
@@ -84,33 +83,33 @@ export function useInvoices() {
   });
 }
 
+/** Invoice with customer + line items (what the PDF needs). */
+export async function fetchInvoiceDetail(id: string): Promise<Invoice> {
+  if (isDemoMode()) {
+    const inv = demoDb.getInvoice(id);
+    if (!inv) throw new Error("Invoice not found");
+    return inv;
+  }
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("invoices")
+    .select(INVOICE_DETAIL_SELECT)
+    .eq("id", id)
+    .single();
+  if (error) {
+    console.error("[invoices] detail fetch error:", error, { id });
+    throw error;
+  }
+  return mapInvoiceRow(data as Record<string, unknown>);
+}
+
 export function useInvoice(id: string) {
   const { user, loading: authLoading } = useAuth();
 
   return useQuery({
     queryKey: ["invoices", id],
     enabled: !!id && id !== "undefined" && !authLoading && !!user,
-    queryFn: async () => {
-      if (isDemoMode()) {
-        const inv = demoDb.getInvoice(id);
-        if (!inv) throw new Error("Invoice not found");
-        return inv;
-      }
-
-      console.log("[invoices] detail fetch id:", id);
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("invoices")
-        .select(INVOICE_DETAIL_SELECT)
-        .eq("id", id)
-        .single();
-      if (error) {
-        console.error("[invoices] detail fetch error:", error, { id });
-        throw error;
-      }
-      console.log("[invoices] detail fetch ok:", data?.id, data?.invoice_number);
-      return mapInvoiceRow(data as Record<string, unknown>);
-    },
+    queryFn: () => fetchInvoiceDetail(id),
   });
 }
 
@@ -139,7 +138,7 @@ export function useInvoiceMutations() {
       const productIds = payload.items
         .map((i) => i.product_id)
         .filter((id): id is string => !!id);
-      const productMap = new Map<string, { hsn_code: string; gst_rate: number }>();
+      const productMap = new Map<string, { hsn_code: string; vat_rate: number; vat_category: VatCategory }>();
       if (productIds.length) {
         const { data: products, error: pErr } = await supabase
           .from("products")
@@ -161,25 +160,29 @@ export function useInvoiceMutations() {
         return {
           quantity: item.quantity,
           unitPrice: item.unit_price,
-          gstRate: Number(item.gst_rate ?? product?.gst_rate ?? 0),
+          vatRate: Number(item.vat_rate ?? product?.vat_rate ?? 0),
+          vatCategory: normalizeVatCategory(
+            item.vat_category ?? product?.vat_category,
+            Number(item.vat_rate ?? product?.vat_rate ?? 0)
+          ),
         };
       });
 
-      const totals = calcInvoiceTotals(lineInputs, customer.state);
+      const pricesIncludeVat = !!payload.prices_include_vat;
+      const totals = calcInvoiceTotals(lineInputs, { pricesIncludeVat });
 
       // Single RPC: allocates invoice number + inserts invoice/items/stock
       // inside one Postgres transaction (all-or-nothing).
       const rpcPayload = {
-        prefix: payload.prefix || "AB",
+        prefix: payload.prefix || DEFAULT_INVOICE_PREFIX,
         customer_id: payload.customer_id,
         invoice_date: payload.invoice_date,
         notes: payload.notes ?? null,
         created_by: payload.user_id,
         warehouse_id: payload.warehouse_id ?? null,
         subtotal: totals.subtotal,
-        total_cgst: totals.totalCgst,
-        total_sgst: totals.totalSgst,
-        total_igst: totals.totalIgst,
+        total_vat: totals.totalVat,
+        prices_include_vat: pricesIncludeVat,
         round_off: totals.roundOff,
         grand_total: totals.grandTotal,
         items: payload.items.map((item, idx) => {
@@ -192,10 +195,9 @@ export function useInvoiceMutations() {
             unit_price: item.unit_price,
             price_overridden: item.price_overridden,
             taxable_value: line.taxableValue,
-            gst_rate: Number(item.gst_rate ?? product?.gst_rate ?? 0),
-            cgst_amount: line.cgstAmount,
-            sgst_amount: line.sgstAmount,
-            igst_amount: line.igstAmount,
+            vat_rate: line.vatRate,
+            vat_amount: line.vatAmount,
+            vat_category: line.vatCategory,
             line_total: line.lineTotal,
             imei_serial: item.imei_serial ?? null,
             batch_number: item.batch_number ?? null,
@@ -257,6 +259,8 @@ export function useInvoiceMutations() {
       qc.setQueryData(["invoices", invoice.id], invoice);
       qc.invalidateQueries({ queryKey: ["invoices"], exact: true });
       qc.invalidateQueries({ queryKey: ["invoices", invoice.id] });
+      qc.invalidateQueries({ queryKey: ["invoices", "history"] });
+      qc.invalidateQueries({ queryKey: ["invoice_items"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["stock_movements"] });
     },
@@ -272,6 +276,7 @@ export function useInvoiceMutations() {
           invoice_date: input.invoice_date,
           notes: input.notes,
           items: input.items,
+          prices_include_vat: input.prices_include_vat,
           user_id: input.user_id,
           force: input.force,
         });
@@ -288,7 +293,7 @@ export function useInvoiceMutations() {
       const productIds = input.items
         .map((i) => i.product_id)
         .filter((id): id is string => !!id);
-      const productMap = new Map<string, { hsn_code: string; gst_rate: number }>();
+      const productMap = new Map<string, { hsn_code: string; vat_rate: number; vat_category: VatCategory }>();
       if (productIds.length) {
         const { data: products, error: pErr } = await supabase
           .from("products")
@@ -310,11 +315,16 @@ export function useInvoiceMutations() {
         return {
           quantity: item.quantity,
           unitPrice: item.unit_price,
-          gstRate: Number(item.gst_rate ?? product?.gst_rate ?? 0),
+          vatRate: Number(item.vat_rate ?? product?.vat_rate ?? 0),
+          vatCategory: normalizeVatCategory(
+            item.vat_category ?? product?.vat_category,
+            Number(item.vat_rate ?? product?.vat_rate ?? 0)
+          ),
         };
       });
 
-      const totals = calcInvoiceTotals(lineInputs, customer.state);
+      const pricesIncludeVat = !!input.prices_include_vat;
+      const totals = calcInvoiceTotals(lineInputs, { pricesIncludeVat });
 
       const rpcPayload = {
         customer_id: input.customer_id,
@@ -324,9 +334,8 @@ export function useInvoiceMutations() {
         force: !!input.force,
         warehouse_id: input.warehouse_id ?? null,
         subtotal: totals.subtotal,
-        total_cgst: totals.totalCgst,
-        total_sgst: totals.totalSgst,
-        total_igst: totals.totalIgst,
+        total_vat: totals.totalVat,
+        prices_include_vat: pricesIncludeVat,
         round_off: totals.roundOff,
         grand_total: totals.grandTotal,
         items: input.items.map((item, idx) => {
@@ -339,10 +348,9 @@ export function useInvoiceMutations() {
             unit_price: item.unit_price,
             price_overridden: item.price_overridden,
             taxable_value: line.taxableValue,
-            gst_rate: Number(item.gst_rate ?? product?.gst_rate ?? 0),
-            cgst_amount: line.cgstAmount,
-            sgst_amount: line.sgstAmount,
-            igst_amount: line.igstAmount,
+            vat_rate: line.vatRate,
+            vat_amount: line.vatAmount,
+            vat_category: line.vatCategory,
             line_total: line.lineTotal,
             imei_serial: item.imei_serial ?? null,
             batch_number: item.batch_number ?? null,
@@ -383,6 +391,8 @@ export function useInvoiceMutations() {
     onSuccess: (invoice, vars) => {
       qc.invalidateQueries({ queryKey: ["invoices"], exact: true });
       qc.invalidateQueries({ queryKey: ["invoices", vars.invoice_id] });
+      qc.invalidateQueries({ queryKey: ["invoices", "history"] });
+      qc.invalidateQueries({ queryKey: ["invoice_items"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["stock_movements"] });
     },

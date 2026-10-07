@@ -34,3 +34,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# secondary dev caches and video project artifacts
+/.next-*/
+/videos/*/node_modules/
+/videos/*/renders/
+/videos/*/.hyperframes/
+/videos/*/assets/screens/
+/videos/*/snapshots/
+/videos/*/.thumbnails/

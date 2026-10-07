@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { DocumentTitle } from "./document-title";
 
 export function EmptyState({
   title,
@@ -68,6 +69,7 @@ export function PageHeader({
 
   return (
     <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <DocumentTitle title={title} />
       <div>
         {eyebrow && (
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate">

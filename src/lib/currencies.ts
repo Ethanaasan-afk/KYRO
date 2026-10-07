@@ -1,4 +1,4 @@
-/** Major / most-traded world currencies for reference pricing (base = INR). */
+/** Major / most-traded world currencies for reference pricing (base = AED). */
 
 export type CurrencyInfo = {
   code: string;
@@ -14,7 +14,7 @@ export const WORLD_CURRENCIES: CurrencyInfo[] = [
   { code: "GBP", name: "British Pound" },
   { code: "JPY", name: "Japanese Yen" },
   { code: "CNY", name: "Chinese Yuan" },
-  { code: "AED", name: "UAE Dirham" },
+  { code: "INR", name: "Indian Rupee" },
   { code: "SAR", name: "Saudi Riyal" },
   { code: "AUD", name: "Australian Dollar" },
   { code: "CAD", name: "Canadian Dollar" },
@@ -35,7 +35,7 @@ export const WORLD_CURRENCIES: CurrencyInfo[] = [
 
 export function formatMoney(amount: number, currency: string): string {
   try {
-    return new Intl.NumberFormat("en-IN", {
+    return new Intl.NumberFormat("en-AE", {
       style: "currency",
       currency,
       minimumFractionDigits: currency === "JPY" || currency === "KRW" || currency === "IDR" ? 0 : 2,
@@ -46,28 +46,28 @@ export function formatMoney(amount: number, currency: string): string {
   }
 }
 
-/** Fallback rates: foreign units per 1 INR (approx Jul 2026) */
+/** Fallback rates: foreign units per 1 AED (approx Jul 2026) */
 export const FALLBACK_RATES: Record<string, number> = {
-  USD: 0.01035,
-  EUR: 0.0091,
-  GBP: 0.00777,
-  JPY: 1.696,
-  CNY: 0.0702,
-  AED: 0.038,
-  SAR: 0.0388,
-  AUD: 0.0148,
-  CAD: 0.0146,
-  CHF: 0.00846,
-  SGD: 0.0134,
-  HKD: 0.0812,
-  MYR: 0.0424,
-  THB: 0.349,
-  IDR: 185.5,
-  KRW: 15.13,
-  NZD: 0.0179,
-  ZAR: 0.174,
-  BRL: 0.0526,
-  MXN: 0.181,
-  TRY: 0.49,
-  RUB: 0.81,
+  USD: 0.2724,
+  EUR: 0.2395,
+  GBP: 0.2045,
+  JPY: 44.63,
+  CNY: 1.847,
+  INR: 26.32,
+  SAR: 1.021,
+  AUD: 0.3895,
+  CAD: 0.3842,
+  CHF: 0.2226,
+  SGD: 0.3526,
+  HKD: 2.137,
+  MYR: 1.116,
+  THB: 9.184,
+  IDR: 4882,
+  KRW: 398.2,
+  NZD: 0.4711,
+  ZAR: 4.579,
+  BRL: 1.384,
+  MXN: 4.763,
+  TRY: 12.89,
+  RUB: 21.32,
 };
