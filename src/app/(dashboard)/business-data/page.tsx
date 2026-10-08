@@ -41,11 +41,29 @@ const CATEGORY_DOT: Record<BusinessDataCategory, string> = {
   product_purchase: "#00A896",
   rent: "#7C6AF0",
   salary: "#1A9E96",
-  utilities: "#FF9F5A",
+  food: "#E8590C",
+  tea_snacks: "#C2410C",
+  fuel: "#DC2626",
   transport: "#4ECDC4",
+  travel: "#0EA5E9",
+  electricity: "#EAB308",
+  utilities: "#FF9F5A",
+  phone_internet: "#6366F1",
+  stationery: "#A855F7",
+  office_supplies: "#8B5CF6",
+  courier: "#14B8A6",
   packaging: "#B8860B",
-  marketing: "#FF6B6B",
+  labour: "#92400E",
+  cleaning: "#22C55E",
   maintenance: "#64748B",
+  marketing: "#FF6B6B",
+  bank_charges: "#0F766E",
+  professional_fees: "#4338CA",
+  insurance: "#0369A1",
+  taxes_fees: "#BE123C",
+  staff_welfare: "#DB2777",
+  medical: "#E11D48",
+  donations: "#D946EF",
   misc: "#94A3B8",
 };
 
@@ -93,7 +111,7 @@ export default function BusinessDataPage() {
         emptyHint={
           tab === "costs"
             ? "Product Purchase entries only. Not linked to the Products catalog."
-            : "Rent, salary, utilities, and other overhead - not linked to invoices."
+            : "Rent, salary, food, chai, petrol and other overhead - not linked to invoices."
         }
         showDateFilter={tab === "expenses"}
         showExport={tab === "expenses"}
@@ -248,7 +266,7 @@ function BusinessDataTab({
       (entries ?? []).map((e) => ({
         date: e.entry_date,
         company_person: e.company_person_name,
-        category: e.category,
+        category: BUSINESS_DATA_CATEGORY_LABELS[e.category] ?? e.category,
         item_name: e.item_name,
         expense_name: e.expense_name,
         payment_method: e.payment_method,
