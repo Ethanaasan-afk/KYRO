@@ -8,20 +8,11 @@ import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
 import { createClient } from "@/lib/supabase/client";
 import type { Invoice } from "@/lib/types";
-import {
-  billRows,
-  billTotals,
-  salesLineRows,
-  TAX_MODE_LABELS,
-  type TaxMode,
-} from "@/lib/report-exports";
-import { cn, downloadCsv, formatCurrency, getDefaultCurrency } from "@/lib/utils";
+import { cn, downloadCsv, formatCurrency, getDefaultCurrency, round2 } from "@/lib/utils";
 import { Download } from "lucide-react";
 import { useState } from "react";
 
 type ReportsTab = "csv" | "vat";
-
-const TAX_MODES: TaxMode[] = ["with", "without"];
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<ReportsTab>("vat");
@@ -55,14 +46,49 @@ export default function ReportsPage() {
     return (rows ?? []) as Invoice[];
   };
 
-  const exportSales = async (mode: TaxMode) => {
-    setLoading(`sales-${mode}`);
+  const exportSales = async () => {
+    setLoading("sales");
     setMessage("");
     try {
-      const rows = salesLineRows(await fetchInvoices(), mode);
-      const suffix = mode === "with" ? "with-vat" : "without-vat";
-      downloadCsv(`sales-${suffix}-${from}-to-${to}.csv`, rows);
-      setMessage(`Exported ${rows.length} sales rows (${TAX_MODE_LABELS[mode]}).`);
+      const data = await fetchInvoices();
+      const rows = data.flatMap((inv): Record<string, unknown>[] => {
+        const items = inv.items ?? [];
+        if (!items.length) {
+          return [
+            {
+              invoice_number: inv.invoice_number,
+              date: inv.invoice_date,
+              customer: inv.customer?.name,
+              product: "",
+              sku: "",
+              qty: 0,
+              taxable: inv.subtotal,
+              vat_rate: "",
+              vat: inv.total_vat,
+              line_total: inv.grand_total,
+              currency: inv.currency,
+              status: inv.status,
+            },
+          ];
+        }
+        return items.map((item) => ({
+          invoice_number: inv.invoice_number,
+          date: inv.invoice_date,
+          customer: inv.customer?.name,
+          product: item.product?.name ?? "",
+          sku: item.product?.sku ?? "",
+          qty: item.quantity,
+          taxable: item.taxable_value,
+          vat_rate: item.vat_rate,
+          vat: item.vat_amount,
+          line_total: item.line_total,
+          currency: inv.currency,
+          status: inv.status,
+        }));
+      });
+
+      downloadCsv(`sales-${from}-to-${to}.csv`, rows);
+      setMessage(`Exported ${rows.length} sales rows.`);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -122,19 +148,38 @@ export default function ReportsPage() {
     }
   };
 
-  const exportBills = async (mode: TaxMode) => {
-    setLoading(`bills-${mode}`);
+  const exportVatSummary = async () => {
+    setLoading("vat");
     setMessage("");
     try {
       const data = await fetchInvoices();
-      const suffix = mode === "with" ? "with-vat" : "without-vat";
-      downloadCsv(`bills-${suffix}-${from}-to-${to}.csv`, billRows(data, mode));
+      const rows = data.map((inv) => ({
+        invoice_number: inv.invoice_number,
+        date: inv.invoice_date,
+        customer: inv.customer?.name,
+        trn: inv.customer?.tax_id ?? "",
+        emirate: inv.customer?.state ?? "",
+        taxable: inv.subtotal,
+        vat: inv.total_vat,
+        total: inv.grand_total,
+        currency: inv.currency,
+      }));
+
+      // Only total the organization currency; legacy INR invoices are listed but not summed
       const currency = getDefaultCurrency();
-      const totals = billTotals(data, currency);
+      const totals = rows
+        .filter((r) => r.currency === currency)
+        .reduce(
+          (acc, r) => ({
+            taxable: round2(acc.taxable + Number(r.taxable)),
+            vat: round2(acc.vat + Number(r.vat)),
+          }),
+          { taxable: 0, vat: 0 }
+        );
+
+      downloadCsv(`vat-summary-${from}-to-${to}.csv`, rows);
       setMessage(
-        mode === "with"
-          ? `Exported ${data.length} bills. Totals (${currency}) - Net ${formatCurrency(totals.net)}, VAT ${formatCurrency(totals.vat)}, Total ${formatCurrency(totals.total)}`
-          : `Exported ${data.length} bills. Net total (${currency}) ${formatCurrency(totals.net)}`
+        `Exported ${rows.length} invoices. Totals (${currency}) - Taxable ${formatCurrency(totals.taxable)}, VAT ${formatCurrency(totals.vat)}`
       );
     } catch (e) {
       setMessage((e as Error).message);
@@ -148,7 +193,7 @@ export default function ReportsPage() {
       <PageHeader
         eyebrow="Reports"
         title="Reports"
-        description="VAT return summary and CSV exports (with or without VAT) for your accountant"
+        description="VAT return summary and CSV exports for your accountant"
         accent="tangerine"
       />
 
@@ -185,29 +230,24 @@ export default function ReportsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <ReportCard
               title="Sales report"
-              description="Every invoice line item for the date range"
+              description="Invoices & line items with VAT for the date range"
+              onClick={exportSales}
+              loading={loading === "sales"}
               accent="teal"
-              actions={TAX_MODES.map((mode) => ({
-                label: TAX_MODE_LABELS[mode],
-                onClick: () => exportSales(mode),
-                loading: loading === `sales-${mode}`,
-              }))}
-            />
-            <ReportCard
-              title="Billing report"
-              description="One row per bill. With VAT adds customer TRN, VAT and totals"
-              accent="sun"
-              actions={TAX_MODES.map((mode) => ({
-                label: TAX_MODE_LABELS[mode],
-                onClick: () => exportBills(mode),
-                loading: loading === `bills-${mode}`,
-              }))}
             />
             <ReportCard
               title="Stock snapshot"
               description="Current stock across all products"
+              onClick={exportStock}
+              loading={loading === "stock"}
               accent="aqua"
-              actions={[{ label: "Export CSV", onClick: exportStock, loading: loading === "stock" }]}
+            />
+            <ReportCard
+              title="VAT summary"
+              description="Taxable value and VAT per invoice, with customer TRN"
+              onClick={exportVatSummary}
+              loading={loading === "vat"}
+              accent="sun"
             />
           </div>
 
@@ -248,12 +288,14 @@ function TabButton({
 function ReportCard({
   title,
   description,
-  actions,
+  onClick,
+  loading,
   accent,
 }: {
   title: string;
   description: string;
-  actions: { label: string; onClick: () => void; loading: boolean }[];
+  onClick: () => void;
+  loading: boolean;
   accent: "teal" | "aqua" | "sun";
 }) {
   const accentClass =
@@ -267,13 +309,9 @@ function ReportCard({
     <div className={`panel p-5 panel-lift ${accentClass}`}>
       <h2 className="font-display text-sm font-semibold text-ink">{title}</h2>
       <p className="mt-1 text-xs text-slate">{description}</p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {actions.map((a) => (
-          <Button key={a.label} variant="secondary" onClick={a.onClick} loading={a.loading}>
-            <Download className="h-4 w-4" /> {a.label}
-          </Button>
-        ))}
-      </div>
+      <Button className="mt-4" variant="secondary" onClick={onClick} loading={loading}>
+        <Download className="h-4 w-4" /> Export CSV
+      </Button>
     </div>
   );
 }

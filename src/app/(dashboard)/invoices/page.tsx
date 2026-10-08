@@ -12,10 +12,9 @@ import { useOrgAccess } from "@/hooks/use-org-access";
 import type { EmailKind } from "@/lib/email/templates";
 import { INVOICE_STATUS_LABELS } from "@/lib/invoice-payment";
 import type { Invoice } from "@/lib/types";
-import { billRows, TAX_MODE_LABELS, type TaxMode } from "@/lib/report-exports";
-import { cn, downloadCsv, formatDate, formatCurrency } from "@/lib/utils";
+import { cn, formatDate, formatCurrency } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
-import { Ban, BellRing, CheckCircle2, Download, Eye, Mail, Pencil, Plus, X } from "lucide-react";
+import { Ban, BellRing, CheckCircle2, Eye, Mail, Pencil, Plus, X } from "lucide-react";
 import { RowMenu } from "@/components/ui/row-menu";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -98,14 +97,6 @@ export default function InvoicesPage() {
       return next;
     });
 
-  /** Exports the bills currently shown (tab + search) with or without VAT. */
-  const exportBills = (mode: TaxMode) => {
-    if (!filtered.length) return;
-    const suffix = mode === "with" ? "with-vat" : "without-vat";
-    downloadCsv(`bills-${filter}-${suffix}-${new Date().toISOString().slice(0, 10)}.csv`, billRows(filtered, mode));
-    toast(`Exported ${filtered.length} bills (${TAX_MODE_LABELS[mode]})`);
-  };
-
   return (
     <div className="pb-24">
       <PageHeader
@@ -114,20 +105,13 @@ export default function InvoicesPage() {
         description="VAT tax invoices - standard, zero-rated and exempt supplies"
         accent="teal"
         actions={
-          <div className="flex flex-wrap gap-2">
-            {(["with", "without"] as const).map((mode) => (
-              <Button key={mode} variant="outline" onClick={() => exportBills(mode)} disabled={!filtered.length}>
-                <Download className="h-4 w-4" /> {TAX_MODE_LABELS[mode]}
+          writesBlocked ? undefined : (
+            <Link href="/invoices/new">
+              <Button>
+                <Plus className="h-4 w-4" /> New Invoice
               </Button>
-            ))}
-            {!writesBlocked && (
-              <Link href="/invoices/new">
-                <Button>
-                  <Plus className="h-4 w-4" /> New Invoice
-                </Button>
-              </Link>
-            )}
-          </div>
+            </Link>
+          )
         }
       />
 
