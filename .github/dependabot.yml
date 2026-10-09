@@ -8,7 +8,16 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    # Major versions change how a library works (Tailwind 4, TypeScript 7,
+    # ESLint 10, ...) and need code changes, not an automatic bump. Security
+    # fixes still arrive: Dependabot security updates ignore this rule.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
