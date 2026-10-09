@@ -1,6 +1,7 @@
 import { PricingPlans } from "@/components/billing/pricing-plans";
 import { FaqList } from "@/components/marketing/faq-list";
 import { Bento } from "@/components/marketing/landing/bento";
+import { Countries } from "@/components/marketing/landing/countries";
 import { FinalCta } from "@/components/marketing/landing/final-cta";
 import { Hero } from "@/components/marketing/landing/hero";
 import { Industries } from "@/components/marketing/landing/industries";
@@ -52,6 +53,10 @@ const FAQ_ITEMS = [
     a: `No. ${APP_NAME} prepares a return summary laid out like yours (UAE VAT 201, Saudi VAT return, UK 9-box, India GSTR-3B and more) plus an Excel workbook from your invoices and purchases. You or your accountant still file it.`,
   },
   {
+    q: "I sell to customers in other countries. Is that covered?",
+    a: "Yes. Give the customer their country and KYRO suggests the right treatment: reverse charge for VAT-registered businesses in another EU country, zero-rated export for everyone else abroad. The legal wording prints on the invoice, and you can change it on any bill.",
+  },
+  {
     q: "Is my data safe?",
     a: "Yes. Each business's data is fully isolated from other tenants, and the app is hosted on a secure cloud stack. You only see your own organization.",
   },
@@ -69,6 +74,7 @@ export default function MarketingHomePage() {
       <BusinessMarquee />
       <ScrollShowcase />
       <Industries />
+      <Countries />
       <VatCalculator />
       <Bento />
 

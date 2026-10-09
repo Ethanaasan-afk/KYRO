@@ -233,10 +233,13 @@ export function NumberTicker({
 export function AnimatedMoney({
   value,
   currency = "AED",
+  decimals = 2,
   className,
 }: {
   value: number;
   currency?: string;
+  /** Minor digits: 2 for most currencies, 3 for dinars and rials */
+  decimals?: number;
   className?: string;
 }) {
   const mv = useMotionValue(value);
@@ -245,7 +248,7 @@ export function AnimatedMoney({
     mv.set(value);
   }, [value, mv]);
   const text = useTransform(spring as MotionValue<number>, (v) =>
-    `${currency} ${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    `${currency} ${v.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`
   );
   return <motion.span className={className}>{text}</motion.span>;
 }

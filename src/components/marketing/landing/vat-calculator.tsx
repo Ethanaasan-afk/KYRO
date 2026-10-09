@@ -1,17 +1,14 @@
 "use client";
 
 import { amountInWords } from "@/lib/amount-in-words";
-import { calcLineVat, type VatCategory } from "@/lib/vat";
-import { cn } from "@/lib/utils";
+import { calcLineVat, splitTax, type VatCategory } from "@/lib/vat";
+import { countryOptions, getCountryConfig, INDIA_STATES } from "@/lib/vat/countries";
+import { cn, currencyDecimals } from "@/lib/utils";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useMemo, useState } from "react";
 import { AnimatedMoney, EASE, Reveal, WordsReveal } from "./primitives";
 
-const TREATMENTS: { id: VatCategory; label: string; hint: string }[] = [
-  { id: "standard", label: "Standard 5%", hint: "Most goods and services" },
-  { id: "zero", label: "Zero-rated", hint: "e.g. qualifying exports" },
-  { id: "exempt", label: "Exempt", hint: "No VAT, no recovery" },
-];
+type Choice = { id: string; label: string; hint: string; rate: number; category: VatCategory };
 
 function Row({ label, children, strong }: { label: string; children: React.ReactNode; strong?: boolean }) {
   return (
@@ -24,23 +21,68 @@ function Row({ label, children, strong }: { label: string; children: React.React
   );
 }
 
+const inputClass =
+  "h-14 w-full rounded-2xl border border-white/12 bg-black/30 px-4 font-mono text-xl font-semibold text-white outline-none transition focus:border-[#b65cff] focus:ring-4 focus:ring-[#b65cff]/20";
+
 export function VatCalculator() {
   const reduce = useReducedMotion();
+  const [countryCode, setCountryCode] = useState("AE");
   const [price, setPrice] = useState("350");
   const [qty, setQty] = useState("12");
-  const [category, setCategory] = useState<VatCategory>("standard");
+  const [choiceId, setChoiceId] = useState("std");
   const [inclusive, setInclusive] = useState(false);
+  /** India: buyer in the seller's state (CGST + SGST) or another state (IGST) */
+  const [sameState, setSameState] = useState(true);
+
+  const country = getCountryConfig(countryCode);
+  const taxName = country.taxName;
+  const decimals = currencyDecimals(country.currency);
+  const gst = country.taxSystem === "gst";
+
+  // The rates this country uses, then zero-rated and exempt
+  const choices = useMemo<Choice[]>(() => {
+    if (country.taxSystem === "none") {
+      return [{ id: "std", label: "No VAT", hint: `${country.name} has no VAT yet`, rate: 0, category: "zero" }];
+    }
+    const rated = country.rates
+      .filter((r) => r.rate > 0)
+      .slice(0, gst ? 4 : 3)
+      .map((r, i) => ({
+        id: i === 0 ? "std" : `r${r.rate}`,
+        label: i === 0 ? `Standard ${r.rate}%` : `${r.rate}%`,
+        hint: i === 0 ? "Most goods and services" : r.label.replace(/^\S+\s*/, "").replace(/[()]/g, "") || "Reduced rate",
+        rate: r.rate,
+        category: "standard" as VatCategory,
+      }));
+    return [
+      ...rated,
+      { id: "zero", label: gst ? "Nil-rated" : "Zero-rated", hint: "e.g. qualifying exports", rate: 0, category: "zero" },
+      { id: "exempt", label: "Exempt", hint: "No tax, no recovery", rate: 0, category: "exempt" },
+    ];
+  }, [country, gst]);
+
+  const choice = choices.find((c) => c.id === choiceId) ?? choices[0];
+  const split = gst ? (sameState ? "cgst_sgst" : "igst") : "single";
 
   const result = useMemo(() => {
     const p = Math.max(0, Number(price) || 0);
     const q = Math.max(0, Number(qty) || 0);
     return calcLineVat(
-      { quantity: q, unitPrice: p, vatRate: category === "standard" ? 5 : 0, vatCategory: category },
-      { pricesIncludeVat: inclusive }
+      { quantity: q, unitPrice: p, vatRate: choice.rate, vatCategory: choice.category },
+      { pricesIncludeVat: inclusive, decimals, split, taxFree: country.taxSystem === "none" }
     );
-  }, [price, qty, category, inclusive]);
+  }, [price, qty, choice, inclusive, decimals, split, country.taxSystem]);
 
-  const words = useMemo(() => amountInWords(result.lineTotal, "AED"), [result.lineTotal]);
+  const parts = splitTax(result.vatAmount, split, decimals);
+  const words = useMemo(() => amountInWords(result.lineTotal, country.currency), [result.lineTotal, country.currency]);
+  const badge =
+    country.taxSystem === "none"
+      ? "No VAT"
+      : choice.category === "standard"
+        ? `${taxName} ${choice.rate}%`
+        : choice.category === "zero"
+          ? "0% zero-rated"
+          : "Exempt";
 
   return (
     <section id="calculator" className="relative scroll-mt-4 py-24 sm:py-32">
@@ -51,13 +93,14 @@ export function VatCalculator() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#c98bff]">Try it right here</p>
           </Reveal>
           <h2 className="mt-3 font-display text-4xl font-extrabold tracking-[-0.035em] text-white sm:text-6xl">
-            <WordsReveal text="VAT, worked out." inView />
+            <WordsReveal text="VAT and GST, worked out." inView />
             <br />
-            <WordsReveal text="To the fils." inView delay={0.2} className="text-[#c98bff]" />
+            <WordsReveal text="To the last cent." inView delay={0.2} className="text-[#c98bff]" />
           </h2>
           <Reveal delay={0.1}>
             <p className="mx-auto mt-5 max-w-xl text-lg text-white/60">
-              This is the same engine that prices every KYRO invoice. Change anything and watch it recalculate.
+              This is the same engine that prices every KYRO invoice. Pick your country, change anything and watch it
+              recalculate.
             </p>
           </Reveal>
         </div>
@@ -65,14 +108,34 @@ export function VatCalculator() {
         <Reveal delay={0.1} className="mx-auto mt-14 grid max-w-5xl gap-6 lg:grid-cols-2">
           {/* inputs */}
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur sm:p-8">
-            <div className="grid grid-cols-2 gap-4">
+            <label className="block">
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-white/50">Country</span>
+              <select
+                value={countryCode}
+                onChange={(e) => {
+                  setCountryCode(e.target.value);
+                  setChoiceId("std");
+                }}
+                className={cn(inputClass, "font-sans text-base")}
+              >
+                {countryOptions().map((o) => (
+                  <option key={o.value} value={o.value} className="bg-[#120e24]">
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mt-4 grid grid-cols-2 gap-4">
               <label className="block">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-white/50">Unit price (AED)</span>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-white/50">
+                  Unit price ({country.currency})
+                </span>
                 <input
                   inputMode="decimal"
                   value={price}
                   onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ""))}
-                  className="h-14 w-full rounded-2xl border border-white/12 bg-black/30 px-4 font-mono text-xl font-semibold text-white outline-none transition focus:border-[#b65cff] focus:ring-4 focus:ring-[#b65cff]/20"
+                  className={inputClass}
                 />
               </label>
               <label className="block">
@@ -81,22 +144,22 @@ export function VatCalculator() {
                   inputMode="numeric"
                   value={qty}
                   onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ""))}
-                  className="h-14 w-full rounded-2xl border border-white/12 bg-black/30 px-4 font-mono text-xl font-semibold text-white outline-none transition focus:border-[#b65cff] focus:ring-4 focus:ring-[#b65cff]/20"
+                  className={inputClass}
                 />
               </label>
             </div>
 
             <fieldset className="mt-6">
-              <legend className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/50">VAT treatment</legend>
+              <legend className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/50">{taxName} rate</legend>
               <div className="grid gap-2 sm:grid-cols-3">
-                {TREATMENTS.map((t) => {
-                  const on = category === t.id;
+                {choices.map((t) => {
+                  const on = choice.id === t.id;
                   return (
                     <button
                       key={t.id}
                       type="button"
                       aria-pressed={on}
-                      onClick={() => setCategory(t.id)}
+                      onClick={() => setChoiceId(t.id)}
                       className={cn(
                         "relative rounded-2xl border px-4 py-3 text-left transition-colors",
                         on ? "border-[#b65cff] text-white" : "border-white/12 text-white/70 hover:border-white/25"
@@ -110,64 +173,104 @@ export function VatCalculator() {
                         />
                       )}
                       <span className="relative block text-[15px] font-semibold">{t.label}</span>
-                      <span className="relative mt-0.5 block text-xs text-white/50">{t.hint}</span>
+                      <span className="relative mt-0.5 block truncate text-xs text-white/50">{t.hint}</span>
                     </button>
                   );
                 })}
               </div>
             </fieldset>
 
-            <button
-              type="button"
-              role="switch"
-              aria-checked={inclusive}
-              onClick={() => setInclusive((v) => !v)}
-              className="mt-6 flex w-full items-center justify-between gap-4 rounded-2xl border border-white/12 bg-black/20 px-4 py-4 text-left transition-colors hover:border-white/25"
-            >
-              <span>
-                <span className="block text-[15px] font-semibold text-white">Prices already include VAT</span>
-                <span className="mt-0.5 block text-xs text-white/50">
-                  {inclusive ? "VAT is worked out of the price you entered" : "VAT is added on top of the price you entered"}
+            {gst && (
+              <div className="mt-6 grid grid-cols-2 gap-2" role="group" aria-label="Where is the customer?">
+                {[
+                  { v: true, label: "Same state", hint: "CGST + SGST" },
+                  { v: false, label: "Another state", hint: "IGST" },
+                ].map((o) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    aria-pressed={sameState === o.v}
+                    onClick={() => setSameState(o.v)}
+                    className={cn(
+                      "rounded-2xl border px-4 py-3 text-left transition-colors",
+                      sameState === o.v ? "border-[#b65cff] bg-[#b65cff]/18 text-white" : "border-white/12 text-white/70 hover:border-white/25"
+                    )}
+                  >
+                    <span className="block text-[15px] font-semibold">{o.label}</span>
+                    <span className="mt-0.5 block text-xs text-white/50">{o.hint}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {country.taxSystem !== "none" && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={inclusive}
+                onClick={() => setInclusive((v) => !v)}
+                className="mt-6 flex w-full items-center justify-between gap-4 rounded-2xl border border-white/12 bg-black/20 px-4 py-4 text-left transition-colors hover:border-white/25"
+              >
+                <span>
+                  <span className="block text-[15px] font-semibold text-white">Prices already include {taxName}</span>
+                  <span className="mt-0.5 block text-xs text-white/50">
+                    {inclusive
+                      ? `${taxName} is worked out of the price you entered`
+                      : `${taxName} is added on top of the price you entered`}
+                  </span>
                 </span>
-              </span>
-              <span className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors duration-300", inclusive ? "bg-[#b65cff]" : "bg-white/20")}>
-                <motion.span
-                  className="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow"
-                  animate={{ x: inclusive ? 20 : 0 }}
-                  transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 30 }}
-                />
-              </span>
-            </button>
+                <span className={cn("relative h-7 w-12 shrink-0 rounded-full transition-colors duration-300", inclusive ? "bg-[#b65cff]" : "bg-white/20")}>
+                  <motion.span
+                    className="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow"
+                    animate={{ x: inclusive ? 20 : 0 }}
+                    transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                </span>
+              </button>
+            )}
           </div>
 
           {/* receipt */}
           <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-[#1d1738] to-[#120e24] p-6 shadow-[0_40px_120px_-40px_rgba(124,28,240,0.7)] sm:p-8">
-            <div className="flex items-center justify-between">
-              <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#c98bff]">Tax invoice · line</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#c98bff]">
+                {country.invoiceTitle} · {country.name}
+              </p>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
-                  key={category + String(inclusive)}
+                  key={badge + String(inclusive)}
                   initial={reduce ? false : { opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.2 }}
-                  className="rounded-full border border-white/12 px-3 py-1 text-xs font-semibold text-white/70"
+                  className="shrink-0 rounded-full border border-white/12 px-3 py-1 text-xs font-semibold text-white/70"
                 >
-                  {category === "standard" ? "VAT 5%" : category === "zero" ? "0% zero-rated" : "Exempt"}
-                  {inclusive ? " · incl." : " · excl."}
+                  {badge}
+                  {country.taxSystem !== "none" ? (inclusive ? " · incl." : " · excl.") : ""}
                 </motion.span>
               </AnimatePresence>
             </div>
 
             <div className="mt-5 divide-y divide-white/10">
-              <Row label="Taxable amount">
-                <AnimatedMoney value={result.taxableValue} />
+              <Row label={country.taxSystem === "none" ? "Amount" : "Taxable amount"}>
+                <AnimatedMoney value={result.taxableValue} currency={country.currency} decimals={decimals} />
               </Row>
-              <Row label={category === "standard" ? "VAT 5%" : "VAT"}>
-                <AnimatedMoney value={result.vatAmount} />
-              </Row>
+              {country.taxSystem === "none" ? null : split === "cgst_sgst" ? (
+                <>
+                  <Row label={`CGST ${choice.rate / 2}%`}>
+                    <AnimatedMoney value={parts.cgst} currency={country.currency} decimals={decimals} />
+                  </Row>
+                  <Row label={`SGST ${choice.rate / 2}%`}>
+                    <AnimatedMoney value={parts.sgst} currency={country.currency} decimals={decimals} />
+                  </Row>
+                </>
+              ) : (
+                <Row label={split === "igst" ? `IGST ${choice.rate}%` : choice.category === "standard" ? `${taxName} ${choice.rate}%` : taxName}>
+                  <AnimatedMoney value={result.vatAmount} currency={country.currency} decimals={decimals} />
+                </Row>
+              )}
               <Row label="Total" strong>
-                <AnimatedMoney value={result.lineTotal} />
+                <AnimatedMoney value={result.lineTotal} currency={country.currency} decimals={decimals} />
               </Row>
             </div>
 
@@ -175,6 +278,14 @@ export function VatCalculator() {
               <span className="font-semibold text-white/70">In words: </span>
               {words}
             </p>
+            {gst && (
+              <p className="mt-1 text-xs text-white/35">
+                Place of supply e.g. {INDIA_STATES[15].name} ({INDIA_STATES[15].code}) · HSN / SAC printed per line
+              </p>
+            )}
+            {country.currencyDecimals === 3 && (
+              <p className="mt-1 text-xs text-white/35">{country.currency} is kept to 3 decimals, as the law expects.</p>
+            )}
 
             <motion.div
               aria-hidden

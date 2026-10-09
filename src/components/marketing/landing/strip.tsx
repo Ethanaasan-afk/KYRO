@@ -5,8 +5,8 @@ import { NumberTicker, Reveal } from "./primitives";
 
 const STATS = [
   { value: 4, suffix: "", label: "steps from customer to tax invoice" },
-  { value: 5, suffix: "%", label: "standard-rate VAT, worked out per line" },
-  { value: 7, suffix: "", label: "emirates broken out in your VAT 201" },
+  { value: 35, suffix: "", label: "countries' VAT and GST rules built in" },
+  { value: 16, suffix: "", label: "trades, each with its own units and fields" },
   { value: 14, suffix: "", label: "days free, no card needed" },
 ];
 

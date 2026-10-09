@@ -85,6 +85,7 @@ export async function updateSession(request: NextRequest) {
     path === "/" ||
     path.startsWith("/pricing") ||
     path.startsWith("/how-it-works") ||
+    path.startsWith("/countries") ||
     path.startsWith("/contact");
   const isLegalPage =
     path.startsWith("/privacy") ||

@@ -76,26 +76,40 @@ function WhatsAppDemo() {
   );
 }
 
+/** Tax numbers from different countries, typed and checked one after another. */
+const TAX_IDS = [
+  { label: "Customer TRN · UAE", value: "100234567800003", hint: "15 digits" },
+  { label: "Customer GSTIN · India", value: "29AAACB1234C1Z5", hint: "state code + PAN + Z + check" },
+  { label: "Customer VAT No. · Germany", value: "DE123456789", hint: "DE + 9 digits" },
+  { label: "Customer VAT No. · Saudi Arabia", value: "300000000000003", hint: "starts and ends with 3" },
+];
+
 function TrnDemo() {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
-  const full = "100234567800003";
+  const [idx, setIdx] = useState(0);
+  const current = TAX_IDS[idx];
+  const full = current.value;
   const [n, setN] = useState(reduce ? full.length : 0);
   useEffect(() => {
     if (!inView || reduce) return;
+    setN(0);
     const c = animate(0, full.length, {
-      duration: 2.2,
+      duration: 1.8,
       ease: "linear",
       delay: 0.3,
       onUpdate: (v) => setN((cur) => (Math.floor(v) === cur ? cur : Math.floor(v))),
+      onComplete: () => {
+        window.setTimeout(() => setIdx((i) => (i + 1) % TAX_IDS.length), 1600);
+      },
     });
     return () => c.stop();
-  }, [inView, reduce]);
+  }, [inView, reduce, full]);
   const done = n >= full.length;
   return (
     <div ref={ref} className="flex h-full flex-col justify-center">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/45">Customer TRN</p>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/45">{current.label}</p>
       <div className={cn("flex h-14 items-center justify-between rounded-2xl border bg-black/30 px-4 transition-colors duration-500", done ? "border-[#34d399]/60" : "border-white/15")}>
         <span className="font-mono text-lg font-semibold tracking-wider text-white">
           {full.slice(0, n)}
@@ -110,17 +124,17 @@ function TrnDemo() {
           <BadgeCheck className="h-6 w-6" />
         </motion.span>
       </div>
-      <p className="mt-2 text-xs text-white/45">15 digits · checked as you type</p>
+      <p className="mt-2 text-xs text-white/45">{current.hint} · checked as you type</p>
     </div>
   );
 }
 
-const EMIRATES = ["Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"];
+const RETURNS = ["VAT 201 · UAE", "VAT return · Saudi", "9-box · UK", "GSTR-3B · India", "VAT · 27 EU", "Bahrain · Oman"];
 
-function EmiratesDemo() {
+function ReturnsDemo() {
   return (
     <div className="flex h-full flex-wrap content-center gap-2">
-      {EMIRATES.map((e, i) => (
+      {RETURNS.map((e, i) => (
         <motion.span
           key={e}
           initial={{ opacity: 0, scale: 0.8, y: 12 }}
@@ -332,15 +346,15 @@ export function Bento() {
           <Reveal delay={0.08}>
             <Card
               className="h-full"
-              title="TRNs, checked for you"
-              body="Customer and supplier TRNs are validated as you type, then printed on the tax invoice."
+              title="Tax numbers, checked for you"
+              body="TRNs, GSTINs and EU or UK VAT numbers are validated as you type, then printed on the invoice."
             >
               <TrnDemo />
             </Card>
           </Reveal>
           <Reveal>
-            <Card className="h-full" title="VAT 201 by emirate" body="Standard-rated sales are split across all seven emirates, the way the return expects.">
-              <EmiratesDemo />
+            <Card className="h-full" title="Your country's return" body="Output and input tax summarised in the layout your tax authority expects, then exported to Excel.">
+              <ReturnsDemo />
             </Card>
           </Reveal>
           <Reveal delay={0.08}>

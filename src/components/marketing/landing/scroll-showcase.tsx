@@ -10,7 +10,7 @@ const STEPS = [
   {
     kicker: "Billing",
     title: "Tax invoices in seconds",
-    body: "Pick a customer, add items. VAT is worked out on every line, your TRN prints automatically, and prices can include or exclude VAT.",
+    body: "Pick a customer, add items. VAT or GST is worked out on every line under your country's rules, your tax number prints automatically, and prices can include or exclude tax.",
     img: "/marketing/showcase/invoice-step3.webp",
     label: "kyro / invoices / new",
   },
@@ -23,8 +23,8 @@ const STEPS = [
   },
   {
     kicker: "Compliance",
-    title: "VAT 201, ready to file",
-    body: "Output VAT by emirate, input VAT from purchases and the net payable, summarised in the FTA VAT 201 layout and exported to Excel.",
+    title: "Your tax return, ready to file",
+    body: "Output tax, input tax from purchases and the net payable, in your country's layout - UAE VAT 201, Saudi VAT return, UK 9-box or India GSTR-3B - and exported to Excel.",
     img: "/marketing/showcase/vat201b.webp",
     label: "kyro / reports / vat 201",
   },

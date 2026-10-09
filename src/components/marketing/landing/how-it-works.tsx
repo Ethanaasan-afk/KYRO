@@ -40,7 +40,7 @@ function BrowserFrame({ src, label, alt, priority = false }: { src: string; labe
 const STEPS = [
   {
     title: "Who is it for?",
-    body: "Search a customer by name, phone or TRN - or add a new one without leaving the invoice.",
+    body: "Search a customer by name, phone or tax number - or add a new one without leaving the invoice.",
     img: "/marketing/showcase/howto-step1.webp",
     label: "kyro / invoices / new · step 1",
   },
@@ -187,7 +187,7 @@ const CHAPTERS: Chapter[] = [
     title: "Set up your business",
     points: [
       "Sign up with your business name and pick your trade - 16 are built in, from fruit & vegetables to furniture.",
-      "Add your TRN, address, bank details and signature once; they print on every tax invoice.",
+      "Pick your country, then add your tax number (TRN, VAT number or GSTIN), address, bank details and signature once; they print on every invoice.",
       "Choose whether your prices include VAT. You can still flip it on any single invoice.",
     ],
     img: "/marketing/showcase/settings.webp",
@@ -212,7 +212,7 @@ const CHAPTERS: Chapter[] = [
     kicker: "Customers",
     title: "Customers & credit",
     points: [
-      "Save each customer's TRN, phone and email so invoices and reminders fill themselves in.",
+      "Save each customer's country, tax number, phone and email so invoices and reminders fill themselves in - customers abroad are reverse charged or zero-rated for you.",
       "Record part payments; every customer gets a running ledger and balance.",
       "The Outstanding page sorts debts by age so you chase the oldest money first.",
     ],
@@ -249,9 +249,9 @@ const CHAPTERS: Chapter[] = [
     id: "vat",
     icon: BarChart3,
     kicker: "Compliance",
-    title: "VAT 201 & reports",
+    title: "VAT & GST returns",
     points: [
-      "Output VAT is split by emirate and input VAT comes from your purchases, in the VAT 201 layout.",
+      "Your return in your country's layout: UAE VAT 201 by emirate, Saudi VAT return, UK 9-box, India GSTR-3B with IGST / CGST / SGST, or output and input VAT for the rest.",
       "Export the workbook to Excel for your accountant, along with sales and purchase registers.",
       "Credit notes and zero-rated or exempt supplies are handled in their own boxes.",
     ],

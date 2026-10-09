@@ -132,6 +132,8 @@ export function SavingsCalculator() {
 
 const EXTRA_ROWS: { group: string; label: string; plans: [boolean, boolean, boolean] }[] = [
   { group: "Billing", label: "Tax invoices with VAT / GST per line, for 35 countries", plans: [true, true, true] },
+  { group: "Billing", label: "Reverse charge, exports and ZATCA QR (Saudi)", plans: [true, true, true] },
+  { group: "Billing", label: "India GST: CGST, SGST, IGST and HSN codes", plans: [true, true, true] },
   { group: "Billing", label: "Email & WhatsApp invoices and reminders", plans: [true, true, true] },
   { group: "Billing", label: "Bulk email to many customers", plans: [true, true, true] },
   { group: "Catalog", label: "Units (kg, L, m, box…) with decimal quantities", plans: [true, true, true] },

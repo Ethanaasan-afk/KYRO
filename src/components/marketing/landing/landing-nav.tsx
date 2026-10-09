@@ -14,6 +14,7 @@ import { EASE } from "./primitives";
 const LINKS = [
   { href: "/#tour", label: "Product", match: "/" },
   { href: "/#industries", label: "Industries", match: "/" },
+  { href: "/countries", label: "Countries", match: "/countries" },
   { href: "/pricing", label: "Pricing", match: "/pricing" },
   { href: "/how-it-works", label: "How it works", match: "/how-it-works" },
   { href: "/contact", label: "Contact", match: "/contact" },

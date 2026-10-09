@@ -9,7 +9,8 @@ const COLUMNS = [
     links: [
       { href: "/#tour", label: "Tour" },
       { href: "/#industries", label: "Every business" },
-      { href: "/#calculator", label: "VAT calculator" },
+      { href: "/countries", label: "Countries & tax" },
+      { href: "/#calculator", label: "VAT & GST calculator" },
       { href: "/pricing", label: "Pricing" },
     ],
   },
@@ -18,7 +19,7 @@ const COLUMNS = [
     links: [
       { href: "/how-it-works", label: "How to use" },
       { href: "/how-it-works#first-invoice", label: "Your first invoice" },
-      { href: "/how-it-works#vat", label: "VAT 201 returns" },
+      { href: "/how-it-works#vat", label: "VAT & GST returns" },
       { href: "/#faq", label: "FAQ" },
     ],
   },
