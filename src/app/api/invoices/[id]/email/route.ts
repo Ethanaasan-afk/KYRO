@@ -49,9 +49,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { data: profile } = await supabase
       .from("users")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("id", user.id)
       .single();
+    if (profile?.role === "accountant") {
+      return NextResponse.json({ error: "Accountant access is view-only." }, { status: 403 });
+    }
     const orgId = profile?.organization_id as string | undefined;
     if (!orgId) return NextResponse.json({ error: "No organization linked" }, { status: 400 });
 
@@ -111,6 +114,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .eq("id", orgId)
       .single();
     // Email preferences arrive with migration 038 - tolerate their absence
+    const { data: payPrefs } = await admin
+      .from("organizations")
+      .select("payment_link_url")
+      .eq("id", orgId)
+      .maybeSingle();
+    const payUrl = (payPrefs?.payment_link_url as string | null) ?? null;
     const { data: prefs } = await admin
       .from("organizations")
       .select("email_subject_template, email_body_template, email_bcc_self")
@@ -195,6 +204,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           total: vars.amount,
           due: vars.amount_due,
           link: pdfUrl,
+          payUrl,
         }),
         attachments: [
           {

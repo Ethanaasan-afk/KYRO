@@ -8,7 +8,14 @@ export const PACK_SIZES = ["100ml", "250ml", "500ml", "1L", "5L", "10L"] as cons
 /** Emirates for the UAE region pickers (customers, suppliers, organization). */
 export { UAE_EMIRATES } from "@/lib/vat/countries";
 
-export type UserRole = "admin" | "staff";
+export type UserRole = "admin" | "staff" | "accountant";
+
+/** Plain-language role names for the UI */
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  staff: "Staff",
+  accountant: "Accountant (view only)",
+};
 export type InvoiceStatus = "issued" | "paid" | "partially_paid" | "cancelled";
 export type CustomerType = "b2b" | "b2c";
 export type MovementType = "in" | "out" | "adjustment";

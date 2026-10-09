@@ -9,6 +9,7 @@ import type {
 } from "./constants";
 import type { BusinessType } from "./business-types";
 import type { VatCategory } from "./vat";
+import type { InvoiceLanguage } from "./invoice-arabic";
 
 export interface AppUser {
   id: string;
@@ -74,7 +75,19 @@ export interface Organization {
   email_bcc_self?: boolean;
   /** Dashboard: monthly sales target in the organization currency */
   monthly_sales_goal?: number | null;
+  /** Business name in Arabic, printed on bilingual invoices */
+  name_ar?: string | null;
+  /** Invoice PDF language: English, or English with Arabic labels */
+  invoice_language?: InvoiceLanguage;
+  /** Online payment page (Stripe, PayTabs, bank link…) printed on invoices and emails */
+  payment_link_url?: string | null;
+  /** Document numbering: calendar year (KY/2026/0001) or April–March (KY/2026-27/0001) */
+  numbering_period?: NumberingPeriod;
+  /** Set when the owner asked for the account to be closed */
+  deletion_requested_at?: string | null;
 }
+
+export type NumberingPeriod = "calendar" | "april";
 
 export interface BillingEvent {
   id: string;
@@ -123,6 +136,10 @@ export interface CompanySettings {
   subscription_status?: Organization["subscription_status"];
   trial_ends_at?: string | null;
   business_type?: BusinessType;
+  name_ar?: string | null;
+  invoice_language?: InvoiceLanguage;
+  payment_link_url?: string | null;
+  numbering_period?: NumberingPeriod;
 }
 
 export interface Warehouse {
@@ -553,4 +570,36 @@ export interface InvoiceEmailLog {
   error: string | null;
   sent_by: string | null;
   created_at: string;
+}
+
+export type RecurringFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
+
+/** One repeated line on a recurring invoice. Prices stay as agreed; VAT uses the product's current rate. */
+export interface RecurringItem {
+  product_id: string;
+  name: string;
+  quantity: number;
+  unit: string | null;
+  unit_price: number;
+}
+
+export interface RecurringInvoice {
+  id: string;
+  organization_id?: string;
+  customer_id: string;
+  source_invoice_id: string | null;
+  name: string;
+  frequency: RecurringFrequency;
+  next_run_date: string;
+  end_date: string | null;
+  items: RecurringItem[];
+  prices_include_vat: boolean;
+  warehouse_id: string | null;
+  notes: string | null;
+  active: boolean;
+  last_invoice_id: string | null;
+  last_run_at: string | null;
+  run_count: number;
+  created_at: string;
+  customer?: Pick<Customer, "id" | "name"> | null;
 }

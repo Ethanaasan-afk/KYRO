@@ -19,6 +19,8 @@ interface AuthContextValue {
   sessionEmail: string | null;
   loading: boolean;
   isAdmin: boolean;
+  /** Accountant role: can look at everything, change nothing */
+  isReadOnly: boolean;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -74,7 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ),
       ]);
 
-      if (authError) console.error("[auth] getUser error:", authError);
+      // Being signed out is normal, not an error worth logging
+      if (authError && authError.name !== "AuthSessionMissingError") console.error("[auth] getUser error:", authError);
 
       if (!authUser) {
         setUser(null);
@@ -160,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         sessionEmail,
         loading,
         isAdmin: user?.role === "admin",
+        isReadOnly: user?.role === "accountant",
         refresh,
         signOut,
       }}

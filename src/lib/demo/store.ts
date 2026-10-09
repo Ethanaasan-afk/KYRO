@@ -1,6 +1,6 @@
 import { calcInvoiceTotals, normalizeVatCategory } from "@/lib/vat";
+import { numberingPeriodLabel } from "@/lib/invoice-options";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
-import { getFinancialYear } from "@/lib/utils";
 import type {
   AppUser,
   BusinessDataEntry,
@@ -20,6 +20,7 @@ import type {
   ProductCost,
   Purchase,
   PurchaseItem,
+  RecurringInvoice,
   StockMovement,
   Supplier,
   Warehouse,
@@ -95,6 +96,7 @@ type Store = {
   creditNotes: CreditNote[];
   productCategories: ProductCategoryRow[];
   invoiceEmails: InvoiceEmailLog[];
+  recurringInvoices: RecurringInvoice[];
 };
 
 function seed(): Store {
@@ -555,6 +557,10 @@ function seed(): Store {
     business_type: "general",
     monthly_sales_goal: 60000,
     email_bcc_self: false,
+    name_ar: "كايرو للتجارة ذ.م.م",
+    invoice_language: "en",
+    payment_link_url: null,
+    numbering_period: "calendar",
   };
 
   const company: CompanySettings = organizationToCompanySettings(organization);
@@ -689,6 +695,7 @@ function seed(): Store {
     creditNotes: [],
     productCategories: demoCategories(),
     invoiceEmails: [],
+    recurringInvoices: [],
   };
 }
 
@@ -748,6 +755,7 @@ function getStore(): Store {
   if (!s.creditNotes) s.creditNotes = [];
   if (!s.productCategories) s.productCategories = demoCategories();
   if (!s.invoiceEmails) s.invoiceEmails = [];
+  if (!s.recurringInvoices) s.recurringInvoices = [];
   if (s.purchaseSeq == null) s.purchaseSeq = 0;
   if (s.creditNoteSeq == null) s.creditNoteSeq = 0;
   if (!s.organization) {
@@ -1346,7 +1354,7 @@ export const demoDb = {
     });
 
     s.invoiceSeq += 1;
-    const fy = getFinancialYear();
+    const fy = numberingPeriodLabel(s.organization.numbering_period ?? "calendar");
     const invoiceNumber = `${payload.prefix || DEFAULT_INVOICE_PREFIX}/${fy}/${String(s.invoiceSeq).padStart(4, "0")}`;
 
     const invoiceId = id();
@@ -1727,7 +1735,7 @@ export const demoDb = {
     const totals = calcInvoiceTotals(lineInputs);
 
     s.purchaseSeq += 1;
-    const fy = getFinancialYear();
+    const fy = numberingPeriodLabel(s.organization.numbering_period ?? "calendar");
     const purchaseNumber = `PO/${fy}/${String(s.purchaseSeq).padStart(4, "0")}`;
     const purchaseId = id();
     const warehouseId = payload.warehouse_id || null;
@@ -1858,7 +1866,7 @@ export const demoDb = {
     });
 
     s.creditNoteSeq += 1;
-    const fy = getFinancialYear();
+    const fy = numberingPeriodLabel(s.organization.numbering_period ?? "calendar");
     const cnNumber = `CN/${fy}/${String(s.creditNoteSeq).padStart(4, "0")}`;
     const cnId = id();
 
@@ -1923,6 +1931,49 @@ export const demoDb = {
     }
 
     return cn;
+  },
+
+  getRecurringInvoices(): RecurringInvoice[] {
+    const s = getStore();
+    return s.recurringInvoices.map((r) => {
+      const c = s.customers.find((x) => x.id === r.customer_id);
+      return { ...r, customer: c ? { id: c.id, name: c.name } : null };
+    });
+  },
+
+  upsertRecurringInvoice(input: Partial<RecurringInvoice> & { id?: string }): RecurringInvoice {
+    const s = getStore();
+    if (input.id) {
+      const row = s.recurringInvoices.find((r) => r.id === input.id);
+      if (!row) throw new Error("Recurring invoice not found");
+      Object.assign(row, input);
+      return { ...row };
+    }
+    const row: RecurringInvoice = {
+      id: id(),
+      customer_id: input.customer_id ?? "",
+      source_invoice_id: input.source_invoice_id ?? null,
+      name: input.name ?? "",
+      frequency: input.frequency ?? "monthly",
+      next_run_date: input.next_run_date ?? now().slice(0, 10),
+      end_date: input.end_date ?? null,
+      items: input.items ?? [],
+      prices_include_vat: !!input.prices_include_vat,
+      warehouse_id: input.warehouse_id ?? null,
+      notes: input.notes ?? null,
+      active: input.active ?? true,
+      last_invoice_id: null,
+      last_run_at: null,
+      run_count: 0,
+      created_at: now(),
+    };
+    s.recurringInvoices.push(row);
+    return { ...row };
+  },
+
+  deleteRecurringInvoice(recurringId: string) {
+    const s = getStore();
+    s.recurringInvoices = s.recurringInvoices.filter((r) => r.id !== recurringId);
   },
 
   getProductCategories(): ProductCategoryRow[] {

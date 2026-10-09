@@ -14,7 +14,7 @@ import { INVOICE_STATUS_LABELS } from "@/lib/invoice-payment";
 import type { Invoice } from "@/lib/types";
 import { cn, formatDate, formatCurrency } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
-import { Ban, BellRing, CheckCircle2, Eye, Mail, Pencil, Plus, X } from "lucide-react";
+import { Ban, BellRing, CheckCircle2, Eye, Mail, Pencil, Plus, Repeat, X } from "lucide-react";
 import { RowMenu } from "@/components/ui/row-menu";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -48,7 +48,7 @@ function matches(inv: Invoice, f: Filter) {
 }
 
 export default function InvoicesPage() {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, isReadOnly } = useAuth();
   const { writesBlocked } = useOrgAccess();
   const { data: invoices, isLoading } = useInvoices();
   const { updateStatus } = useInvoiceMutations();
@@ -105,13 +105,20 @@ export default function InvoicesPage() {
         description="VAT tax invoices - standard, zero-rated and exempt supplies"
         accent="teal"
         actions={
-          writesBlocked ? undefined : (
-            <Link href="/invoices/new">
-              <Button>
-                <Plus className="h-4 w-4" /> New Invoice
+          <>
+            <Link href="/invoices/recurring">
+              <Button variant="outline">
+                <Repeat className="h-4 w-4" /> Recurring
               </Button>
             </Link>
-          )
+            {writesBlocked || isReadOnly ? null : (
+              <Link href="/invoices/new">
+                <Button>
+                  <Plus className="h-4 w-4" /> New Invoice
+                </Button>
+              </Link>
+            )}
+          </>
         }
       />
 

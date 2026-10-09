@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/auth-provider";
+import { RecurringDueBanner } from "@/components/dashboard/recurring-due-banner";
 import { BulkEmailModal } from "@/components/invoices/bulk-email-modal";
 import {
   ActivityCard,
@@ -84,7 +85,7 @@ function DashboardSkeleton() {
 
 export default function DashboardPage() {
   const d = useDashboardData();
-  const { user } = useAuth();
+  const { user, isReadOnly } = useAuth();
   const { isHotel } = useBusinessType();
   const updateOrg = useUpdateOrganization();
   const { toast } = useToast();
@@ -285,6 +286,7 @@ export default function DashboardPage() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-slate">{insight}</p>
         </div>
+        {!isReadOnly && (
         <div className="flex flex-wrap gap-2">
           <Link
             href="/invoices/new"
@@ -306,9 +308,12 @@ export default function DashboardPage() {
             </Link>
           ))}
         </div>
+        )}
       </motion.header>
 
       {!setupDone && <SetupCard steps={steps} />}
+
+      {!isReadOnly && <RecurringDueBanner />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <TodayCard today={x.today} sameDayLastWeek={x.sameDayLastWeek} collectedToday={x.collectedToday} last14={x.last14} />

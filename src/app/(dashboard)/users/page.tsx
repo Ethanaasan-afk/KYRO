@@ -1,5 +1,6 @@
 "use client";
 
+import { ROLE_LABELS } from "@/lib/constants";
 import { useAuth } from "@/components/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,7 +106,7 @@ export default function UsersPage() {
                 <tr key={u.id}>
                   <td className="font-medium">{u.full_name}</td>
                   <td>
-                    <Badge variant={u.role === "admin" ? "info" : "default"}>{u.role}</Badge>
+                    <Badge variant={u.role === "admin" ? "info" : "default"}>{ROLE_LABELS[u.role] ?? u.role}</Badge>
                   </td>
                   <td className="font-mono text-xs text-slate">{formatDate(u.created_at)}</td>
                 </tr>
@@ -129,8 +130,9 @@ export default function UsersPage() {
           <Select
             label="Role"
             options={[
-              { value: "staff", label: "Staff" },
-              { value: "admin", label: "Admin" },
+              { value: "staff", label: "Staff - create invoices, record payments, manage stock" },
+              { value: "accountant", label: "Accountant - view everything and export reports, change nothing" },
+              { value: "admin", label: "Admin - everything, including settings, users and billing" },
             ]}
             {...register("role")}
           />

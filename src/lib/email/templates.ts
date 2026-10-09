@@ -97,12 +97,18 @@ export function renderInvoiceEmailHtml(input: {
   total: string;
   due: string;
   link?: string | null;
+  /** The business's own online payment page */
+  payUrl?: string | null;
 }): string {
   const accent = input.kind === "reminder" ? "#f59e0b" : "#7c1cf0";
   const label = input.kind === "reminder" ? "Payment reminder" : "Tax invoice";
   const button = input.link
     ? `<tr><td style="padding:6px 32px 28px"><a href="${escapeHtml(input.link)}" style="display:inline-block;background:${accent};color:#ffffff;font-weight:600;font-size:15px;text-decoration:none;padding:13px 22px;border-radius:12px">View &amp; download PDF</a></td></tr>`
     : "";
+  const pay =
+    input.payUrl && /^https:\/\//i.test(input.payUrl)
+      ? `<tr><td style="padding:0 32px 26px"><a href="${escapeHtml(input.payUrl)}" style="display:inline-block;background:#0f9d6b;color:#ffffff;font-weight:700;font-size:15px;text-decoration:none;padding:13px 22px;border-radius:12px">Pay ${escapeHtml(input.kind === "reminder" ? input.due : input.total)} online</a></td></tr>`
+      : "";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(label)} ${escapeHtml(input.invoiceNumber)}</title></head>
 <body style="margin:0;background:#f4f2fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d1530">
@@ -124,6 +130,7 @@ export function renderInvoiceEmailHtml(input: {
 </td></tr>
 <tr><td style="padding:22px 32px 6px;font-size:15px;color:#2b2340">${textToHtml(input.message)}</td></tr>
 ${button}
+${pay}
 <tr><td style="padding:16px 32px 24px;border-top:1px solid #f0edf7;font-size:12px;color:#8a83a3">The PDF tax invoice is attached to this email. Reply to this email to reach ${escapeHtml(input.company)} directly.<br><span style="color:#b3adc8">Sent with ${APP_NAME}</span></td></tr>
 </table>
 </td></tr></table>

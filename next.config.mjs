@@ -44,7 +44,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), usb=(), browsing-topics=(), payment=(self \"https://checkout.razorpay.com\" \"https://api.razorpay.com\")",
+    value: "camera=(self), microphone=(), geolocation=(), usb=(), browsing-topics=(), payment=(self \"https://checkout.razorpay.com\" \"https://api.razorpay.com\")",
   },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   { key: "X-DNS-Prefetch-Control", value: "on" },

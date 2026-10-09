@@ -47,3 +47,6 @@ next-env.d.ts
 # local scratch output (test PDFs, reports)
 /tmp/
 /test-*.pdf
+
+# copied from node_modules on install (scripts/copy-scanner-wasm.mjs)
+/public/scanner/

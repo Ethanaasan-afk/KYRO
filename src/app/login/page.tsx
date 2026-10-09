@@ -17,7 +17,7 @@ function friendlyAuthError(message: string) {
     return "Wrong email or password. If you just signed up, use the same password, or start a free trial.";
   }
   if (/email not confirmed/i.test(message)) {
-    return "This email is not confirmed yet. Use Email OTP, or try again in a minute.";
+    return "Please confirm your email first. Open the link we sent when you signed up, or send it again below.";
   }
   if (/signups not allowed|user not found|unable to validate email/i.test(message)) {
     return "No account for this email. Start a free trial first.";
@@ -42,6 +42,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
   const demo = isDemoMode();
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (new URLSearchParams(window.location.search).get("error") === "otp") {
-      setError("Email sign-in link failed. Request a new OTP and try again.");
+      setError("That email link has expired or was opened on another device. If you just confirmed your email, sign in with your password below.");
     }
   }, []);
 
@@ -131,10 +132,30 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (err) {
+      setUnconfirmed(/email not confirmed/i.test(err.message));
       setError(friendlyAuthError(err.message));
       return;
     }
     window.location.assign("/dashboard");
+  };
+
+  const resendConfirmation = async () => {
+    const clean = email.trim().toLowerCase();
+    if (!clean || resendIn > 0) return;
+    setLoading(true);
+    const { error: err } = await createClient().auth.resend({
+      type: "signup",
+      email: clean,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/complete-setup` },
+    });
+    setLoading(false);
+    if (err) {
+      setError(friendlyAuthError(err.message));
+      return;
+    }
+    setError("");
+    setInfo("Confirmation email sent. Open the link, then come back and sign in.");
+    setResendIn(60);
   };
 
   if (demo) {
@@ -245,8 +266,25 @@ export default function LoginPage() {
               />
             )
           )}
+          {method === "password" && (
+            <div className="-mt-2 text-right">
+              <a href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+                Forgot password?
+              </a>
+            </div>
+          )}
           {info && <p className="text-xs text-emerald">{info}</p>}
           {error && <p className="text-xs text-rose">{error}</p>}
+          {unconfirmed && method === "password" && (
+            <button
+              type="button"
+              disabled={resendIn > 0}
+              className="text-xs font-medium text-primary hover:underline disabled:text-slate disabled:no-underline"
+              onClick={() => void resendConfirmation()}
+            >
+              {resendIn > 0 ? `Confirmation email sent · resend in ${resendIn}s` : "Resend confirmation email"}
+            </button>
+          )}
           <Button type="submit" className="w-full" loading={loading}>
             {method === "password"
               ? "Sign in"

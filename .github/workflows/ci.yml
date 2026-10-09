@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Types, lint, tests, database, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Database tests (all migrations on an in-memory Postgres)
+        run: npm run test:db
+
+      - name: Production dependencies have no known vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholders: the build never talks to these services
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          NEXT_PUBLIC_APP_URL: https://ci.example.com
+          DEMO_MODE: "false"
+          NEXT_PUBLIC_DEMO_MODE: "false"
+          NEXT_TELEMETRY_DISABLED: "1"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/auth-provider";
+import { ROLE_LABELS } from "@/lib/constants";
 import { NotificationsBell } from "@/components/layout/notifications-panel";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -18,7 +19,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 export function TopBar() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isReadOnly } = useAuth();
   const { labels } = useBusinessType();
   const [quickOpen, setQuickOpen] = useState(false);
   const initial = (user?.full_name?.trim()?.[0] ?? "U").toUpperCase();
@@ -27,6 +28,7 @@ export function TopBar() {
     <header className="mb-5 flex flex-wrap items-center gap-2 sm:mb-7 sm:gap-3">
       <GlobalSearch />
 
+      {!isReadOnly && (
       <div className="relative">
         <Button
           type="button"
@@ -73,6 +75,7 @@ export function TopBar() {
           </>
         )}
       </div>
+      )}
 
       <ThemeToggle />
 
@@ -84,7 +87,7 @@ export function TopBar() {
         </div>
         <div className="hidden min-w-0 sm:block">
           <p className="truncate text-sm font-medium text-ink">{user?.full_name}</p>
-          <p className="text-[11px] capitalize text-slate">{user?.role}</p>
+          <p className="text-[11px] text-slate">{user ? ROLE_LABELS[user.role] ?? user.role : ""}</p>
         </div>
         <button
           type="button"

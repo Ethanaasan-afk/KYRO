@@ -3,6 +3,8 @@
 import { SignatureUploadSection } from "@/components/settings/signature-upload-section";
 import { BusinessTypePicker } from "@/components/settings/business-type-picker";
 import { EmailSettingsSection } from "@/components/settings/email-settings-section";
+import { InvoiceOptionsSection } from "@/components/settings/invoice-options-section";
+import { DataSection } from "@/components/settings/data-section";
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -228,7 +230,11 @@ export default function SettingsPage() {
         </div>
       </form>
 
+      <InvoiceOptionsSection />
+
       <EmailSettingsSection />
+
+      <DataSection />
 
       <div className="panel mt-6 max-w-2xl space-y-3 p-5">
         <h2 className="font-display text-sm font-semibold text-ink">Help &amp; tour</h2>

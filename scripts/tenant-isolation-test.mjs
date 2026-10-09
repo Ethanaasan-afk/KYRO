@@ -51,21 +51,30 @@ function authed(accessToken, refreshToken) {
   return { sb, accessToken, refreshToken };
 }
 
+/** Test accounts are created with the service role (sign-up itself now needs email confirmation). */
 async function signup(business_name, email) {
-  const res = await fetch(`${APP}/api/auth/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      business_name,
-      owner_name: `${business_name} Owner`,
-      email,
-      password: PASSWORD,
-      business_type: "general",
-    }),
+  if (!SERVICE) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required to create test accounts");
+  const admin = createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: created, error: userErr } = await admin.auth.admin.createUser({
+    email,
+    password: PASSWORD,
+    email_confirm: true,
+    user_metadata: { full_name: `${business_name} Owner` },
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(`Signup ${business_name}: ${json.error ?? res.status}`);
-  return json.organization_id;
+  if (userErr || !created.user) throw new Error(`Signup ${business_name}: ${userErr?.message}`);
+  const slug = `${business_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`;
+  const { data: org, error: orgErr } = await admin
+    .from("organizations")
+    .insert({ name: business_name, slug, brand_name: business_name, state: "", email, plan: "free", subscription_status: "trialing" })
+    .select("id")
+    .single();
+  if (orgErr || !org) throw new Error(`Org ${business_name}: ${orgErr?.message}`);
+  await admin.from("warehouses").insert({ name: "Main warehouse", code: `MAIN-${slug}`.slice(0, 40), is_default: true, is_active: true, organization_id: org.id });
+  const { error: profileErr } = await admin
+    .from("users")
+    .upsert({ id: created.user.id, full_name: `${business_name} Owner`, role: "admin", organization_id: org.id }, { onConflict: "id" });
+  if (profileErr) throw new Error(`Profile ${business_name}: ${profileErr.message}`);
+  return org.id;
 }
 
 async function signIn(email) {
@@ -91,7 +100,7 @@ async function main() {
   console.log(`A ${emailA}`);
   console.log(`B ${emailB}`);
 
-  const ping = await fetch(`${APP}/api/auth/signup`, { method: "OPTIONS" }).catch(() => null);
+  const ping = await fetch(`${APP}/login`).catch(() => null);
   if (!ping) {
     console.error("Dev server not reachable. Start with: npm run dev");
     process.exit(1);

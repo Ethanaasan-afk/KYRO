@@ -168,7 +168,7 @@ export function passwordStrengthChecks(password: string) {
 export const inviteUserSchema = z.object({
   email: z.string().email(),
   full_name: z.string().min(1),
-  role: z.enum(["admin", "staff"]),
+  role: z.enum(["admin", "staff", "accountant"]),
   password: strongPasswordSchema,
 });
 

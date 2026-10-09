@@ -59,6 +59,11 @@ function mapOrgRow(row: Record<string, unknown>): Organization {
     email_body_template: (row.email_body_template as string | null) ?? null,
     email_bcc_self: Boolean(row.email_bcc_self ?? false),
     monthly_sales_goal: row.monthly_sales_goal != null ? Number(row.monthly_sales_goal) : null,
+    name_ar: (row.name_ar as string | null) ?? null,
+    invoice_language: row.invoice_language === "en_ar" ? "en_ar" : "en",
+    payment_link_url: (row.payment_link_url as string | null) ?? null,
+    numbering_period: row.numbering_period === "april" ? "april" : "calendar",
+    deletion_requested_at: (row.deletion_requested_at as string | null) ?? null,
   };
 }
 

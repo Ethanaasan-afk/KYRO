@@ -38,9 +38,12 @@ export async function POST(
 
     const { data: profile } = await supabase
       .from("users")
-      .select("organization_id")
+      .select("organization_id, role")
       .eq("id", user.id)
       .single();
+    if (profile?.role === "accountant") {
+      return NextResponse.json({ error: "Accountant access is view-only." }, { status: 403 });
+    }
 
     if (!profile?.organization_id) {
       return NextResponse.json({ error: "No organization linked" }, { status: 400 });

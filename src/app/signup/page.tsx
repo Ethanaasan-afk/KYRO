@@ -22,6 +22,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+function friendlySignupError(message: string) {
+  if (/already registered|already exists/i.test(message)) {
+    return "An account with this email already exists. Sign in instead, or use a different email.";
+  }
+  if (/password/i.test(message)) return "Please choose a stronger password.";
+  if (/rate limit|too many|security purposes/i.test(message)) {
+    return "Too many attempts. Please wait a minute and try again.";
+  }
+  if (/invalid.*email|email.*invalid/i.test(message)) return "Enter a valid email address.";
+  if (/signups? not allowed|disabled/i.test(message)) return "New sign-ups are paused right now. Please contact support.";
+  return message;
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [businessName, setBusinessName] = useState("");
@@ -31,11 +44,19 @@ export default function SignupPage() {
   const [businessType, setBusinessType] = useState<BusinessType>(DEFAULT_BUSINESS_TYPE);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
   const demo = isDemoMode();
 
   useEffect(() => {
     if (demo) router.replace("/dashboard");
   }, [demo, router]);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = window.setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [resendIn]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -56,30 +77,57 @@ export default function SignupPage() {
       return;
     }
     setLoading(true);
+    const cleanEmail = email.trim().toLowerCase();
     try {
-      const res = await fetch("/api/auth/signup", {
+      const supabase = createClient();
+      // Supabase emails a confirmation link (when "Confirm email" is on). The business
+      // details ride along in the user's metadata and are used to create the workspace
+      // the first time they come back signed in (see /complete-setup).
+      const { data, error: signErr } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/complete-setup`,
+          data: {
+            full_name: ownerName.trim(),
+            business_name: businessName.trim(),
+            business_type: businessType,
+          },
+        },
+      });
+      if (signErr) {
+        setError(friendlySignupError(signErr.message));
+        return;
+      }
+      // An existing, confirmed email comes back as a user with no identities
+      if (data.user && (data.user.identities?.length ?? 0) === 0) {
+        setError("An account with this email already exists. Sign in instead, or use a different email.");
+        return;
+      }
+      if (!data.session) {
+        setSentTo(cleanEmail);
+        return;
+      }
+
+      // Email confirmation is switched off in Supabase: create the workspace right away
+      const res = await fetch("/api/auth/complete-setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           business_name: businessName,
           owner_name: ownerName,
-          email: email.trim().toLowerCase(),
-          password,
           business_type: businessType,
         }),
       });
-      const json = (await res.json()) as {
+      const json = (await res.json().catch(() => ({}))) as {
         error?: string;
         organization_id?: string;
         business_type?: string;
-        business_type_persisted?: boolean;
       };
       if (!res.ok) {
-        setError(json.error ?? "Signup failed");
+        setError(json.error ?? "Your account was created, but setting up the business failed. Sign in to finish.");
         return;
       }
-
-      // Always mirror chosen type locally so UI labels work immediately
       if (json.organization_id) {
         const { writeLocalBusinessType } = await import("@/lib/business-type-storage");
         const { normalizeBusinessType } = await import("@/lib/business-types");
@@ -88,26 +136,28 @@ export default function SignupPage() {
           normalizeBusinessType(json.business_type ?? businessType)
         );
       }
-
-      const supabase = createClient();
-      const { error: signErr } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-      if (signErr) {
-        setError(
-          /invalid|credentials/i.test(signErr.message)
-            ? "Account was created. Go to Sign in and log in with the same email and password."
-            : signErr.message
-        );
-        return;
-      }
       window.location.assign("/dashboard");
     } catch (err) {
-      setError((err as Error).message);
+      setError((err as Error).message || "Signup failed. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const resendConfirmation = async () => {
+    if (!sentTo || resendIn > 0) return;
+    setError("");
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.resend({
+      type: "signup",
+      email: sentTo,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/complete-setup` },
+    });
+    if (err) {
+      setError(friendlySignupError(err.message));
+      return;
+    }
+    setResendIn(60);
   };
 
   // FIX: Moved useMemo hook ABOVE the early return so it always runs
@@ -164,6 +214,41 @@ export default function SignupPage() {
           <p className="mt-1 text-xs text-slate">14 days · your own isolated workspace on {APP_NAME}</p>
         </div>
 
+        {sentTo ? (
+          <div className="space-y-4 text-center" role="status">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-2xl">
+              ✉️
+            </div>
+            <div>
+              <h2 className="font-display text-lg font-semibold text-ink">Check your email</h2>
+              <p className="mt-1 text-sm text-slate">
+                We sent a confirmation link to <span className="font-medium text-ink">{sentTo}</span>. Open it
+                on this device to finish setting up {businessName.trim() || "your business"}.
+              </p>
+            </div>
+            <p className="text-xs text-slate">Can&apos;t find it? Check your spam or promotions folder.</p>
+            {error && <p className="text-xs text-rose">{error}</p>}
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              disabled={resendIn > 0}
+              onClick={() => void resendConfirmation()}
+            >
+              {resendIn > 0 ? `Resend link in ${resendIn}s` : "Resend confirmation email"}
+            </Button>
+            <button
+              type="button"
+              className="text-xs font-medium text-primary hover:underline"
+              onClick={() => {
+                setSentTo(null);
+                setError("");
+              }}
+            >
+              Use a different email
+            </button>
+          </div>
+        ) : (
         <form onSubmit={onSubmit} className="space-y-4">
           <Input
             id="business_name"
@@ -245,6 +330,7 @@ export default function SignupPage() {
             </Link>
           </p>
         </form>
+        )}
 
         <p className="mt-6 text-center text-xs text-slate">
           Already have an account?{" "}

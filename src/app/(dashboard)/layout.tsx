@@ -9,11 +9,18 @@ import { TrialBanner } from "@/components/layout/trial-banner";
 import { Button } from "@/components/ui/button";
 import { LoadingBlock } from "@/components/ui/page-header";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { loading, user, unlinked, sessionEmail, signOut } = useAuth();
+  const { loading, user, unlinked, sessionEmail, signOut, isReadOnly } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
+
+  // Signed in but no business yet (e.g. just confirmed their email): finish setup
+  useEffect(() => {
+    if (!loading && !user && unlinked) router.replace("/complete-setup");
+  }, [loading, user, unlinked, router]);
 
   if (loading) {
     return (
@@ -58,6 +65,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
         <DemoBanner />
         <TrialBanner />
+        {isReadOnly && (
+          <div className="border-b border-primary/20 bg-primary/5 px-4 py-2 text-center text-xs font-medium text-ink md:px-8" role="status">
+            View-only accountant access: you can open, print and export everything. Changes are made by an admin.
+          </div>
+        )}
         <main className="flex-1 px-4 py-5 pt-[max(1rem,env(safe-area-inset-top))] pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:px-8 md:py-8 md:pb-8">
           <div className="mx-auto max-w-7xl">
             <TopBar />

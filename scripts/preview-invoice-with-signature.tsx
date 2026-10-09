@@ -1,13 +1,14 @@
 /**
  * Render a sample UAE tax invoice PDF (standard + zero-rated lines, signature).
  * Run: npx tsx --tsconfig tsconfig.json scripts/preview-invoice-with-signature.tsx
+ * Add --ar for the bilingual English + Arabic version.
  */
 import React from "react";
 import fs from "fs";
 import path from "path";
-import { pdf } from "@react-pdf/renderer";
+import { Font, pdf } from "@react-pdf/renderer";
 import { InvoicePdfDocument } from "../src/components/invoices/invoice-pdf";
-import { ensureInvoicePdfFonts } from "../src/lib/invoice-pdf-fonts";
+import { ensureInvoicePdfFonts, PDF_ARABIC_FAMILY } from "../src/lib/invoice-pdf-fonts";
 import type { CompanySettings, Invoice, Product } from "../src/lib/types";
 
 function fileToDataUrl(p: string) {
@@ -39,6 +40,15 @@ function product(id: string, name: string, vatRate: number, zero = false): Produ
 async function main() {
   ensureInvoicePdfFonts();
   const root = process.cwd();
+  const arabic = process.argv.includes("--ar");
+  // In Node the Arabic font comes from disk instead of the site URL
+  Font.register({
+    family: PDF_ARABIC_FAMILY,
+    fonts: [400, 600, 700].map((w) => ({
+      src: path.join(root, `public/fonts/pdf/ibm-plex-sans-arabic-${w}.ttf`),
+      fontWeight: w,
+    })),
+  });
   const company: CompanySettings = {
     id: "x",
     company_name: "Al Waha General Trading LLC",
@@ -60,11 +70,14 @@ async function main() {
     invoice_prefix: "KY",
     updated_at: new Date().toISOString(),
     signature_url: "local",
+    name_ar: "الواحة للتجارة العامة ذ.م.م",
+    invoice_language: arabic ? "en_ar" : "en",
+    payment_link_url: "https://pay.example.ae/alwaha",
   };
 
   const invoice: Invoice = {
     id: "inv",
-    invoice_number: "NF/2026-27/0001",
+    invoice_number: "KY/2026/0001",
     customer_id: "c",
     invoice_date: "2026-10-07",
     subtotal: 1250,
@@ -119,7 +132,7 @@ async function main() {
         vat_amount: 0,
         vat_category: "zero",
         line_total: 250,
-        product: product("p2", "Export consignment handling", 0, true),
+        product: product("p2", arabic ? "تمور مجدول - Medjool dates" : "Export consignment handling", 0, true),
       },
     ],
   };
@@ -136,7 +149,7 @@ async function main() {
     />
   ).toBlob();
 
-  const out = path.join(root, "tmp", "invoice-with-signature.pdf");
+  const out = path.join(root, "tmp", arabic ? "invoice-bilingual.pdf" : "invoice-with-signature.pdf");
   fs.writeFileSync(out, Buffer.from(await blob.arrayBuffer()));
   console.log("wrote", out);
 }

@@ -32,6 +32,10 @@ export function organizationToCompanySettings(org: Organization): CompanySetting
     subscription_status: org.subscription_status,
     trial_ends_at: org.trial_ends_at,
     business_type: normalizeBusinessType(org.business_type),
+    name_ar: org.name_ar ?? null,
+    invoice_language: org.invoice_language ?? "en",
+    payment_link_url: org.payment_link_url ?? null,
+    numbering_period: org.numbering_period ?? "calendar",
   };
 }
 

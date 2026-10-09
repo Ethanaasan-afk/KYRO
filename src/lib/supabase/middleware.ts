@@ -77,6 +77,8 @@ export async function updateSession(request: NextRequest) {
   }
 
   const isAuthPage = path.startsWith("/login") || path.startsWith("/signup");
+  // Password reset pages handle their own session state
+  const isPasswordPage = path.startsWith("/forgot-password") || path.startsWith("/reset-password");
   const isAuthCallback = path.startsWith("/auth/callback");
   const isCompleteSetup = path.startsWith("/complete-setup");
   const isMarketingPage =
@@ -99,7 +101,7 @@ export async function updateSession(request: NextRequest) {
     path === "/robots.txt" ||
     path === "/sitemap.xml" ||
     path === "/manifest.json" ||
-    /\.(json|webmanifest|txt|xml|ico|mp4|webm|woff2?|ttf|pdf)$/i.test(path) ||
+    /\.(json|webmanifest|txt|xml|ico|mp4|webm|woff2?|ttf|pdf|wasm)$/i.test(path) ||
     path.startsWith("/api");
 
   // Demo mode: skip Supabase entirely, allow the app through
@@ -178,6 +180,7 @@ export async function updateSession(request: NextRequest) {
     // Fail closed: anything that is not public goes to the login page
     if (
       !isAuthPage &&
+      !isPasswordPage &&
       !isCompleteSetup &&
       !isPublicAsset &&
       !isShortLink &&
@@ -194,6 +197,7 @@ export async function updateSession(request: NextRequest) {
 
   const isPublic =
     isAuthPage ||
+    isPasswordPage ||
     isCompleteSetup ||
     isPublicAsset ||
     isShortLink ||

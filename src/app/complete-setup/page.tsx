@@ -12,9 +12,10 @@ import {
   type BusinessType,
 } from "@/lib/business-types";
 import { isDemoMode } from "@/lib/demo/mode";
+import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 export default function CompleteSetupPage() {
   const router = useRouter();
@@ -41,19 +42,44 @@ export default function CompleteSetupPage() {
     }
   }, [authLoading, user, sessionEmail, router]);
 
+  // Details typed at sign-up travel in the user's metadata: fill the form and,
+  // when everything is there, finish setup without asking again.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (demo || authLoading || user?.organization_id || !sessionEmail || autoTried.current) return;
+    autoTried.current = true;
+    void (async () => {
+      const { data } = await createClient().auth.getUser();
+      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+      const name = typeof meta.business_name === "string" ? meta.business_name.trim() : "";
+      const owner = typeof meta.full_name === "string" ? meta.full_name.trim() : "";
+      const type =
+        typeof meta.business_type === "string" && BUSINESS_TYPE_OPTIONS.some((o) => o.value === meta.business_type)
+          ? (meta.business_type as BusinessType)
+          : DEFAULT_BUSINESS_TYPE;
+      if (name) setBusinessName(name);
+      if (owner) setOwnerName(owner);
+      setBusinessType(type);
+      if (name.length >= 2 && owner) {
+        await submit({ business_name: name, owner_name: owner, business_type: type });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demo, authLoading, user, sessionEmail]);
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    await submit({ business_name: businessName, owner_name: ownerName, business_type: businessType });
+  };
+
+  const submit = async (values: { business_name: string; owner_name: string; business_type: BusinessType }) => {
     setError("");
     setLoading(true);
     try {
       const res = await fetch("/api/auth/complete-setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          business_name: businessName,
-          owner_name: ownerName,
-          business_type: businessType,
-        }),
+        body: JSON.stringify(values),
       });
       const json = (await res.json()) as {
         error?: string;
@@ -70,7 +96,7 @@ export default function CompleteSetupPage() {
         const { normalizeBusinessType } = await import("@/lib/business-types");
         writeLocalBusinessType(
           json.organization_id,
-          normalizeBusinessType(json.business_type ?? businessType)
+          normalizeBusinessType(json.business_type ?? values.business_type)
         );
       }
 

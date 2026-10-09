@@ -39,7 +39,8 @@ import { getNumberInputHandlers } from "@/lib/number-input";
 import { formatQty, getUnit, roundQty, unitStep } from "@/lib/units";
 import { categoryPath } from "@/lib/categories";
 import { useCategoryTree } from "@/hooks/use-product-categories";
-import { LayoutGrid, Mail, Minus, Plus, ScanBarcode, Search, Trash2, UserPlus } from "lucide-react";
+import { Camera, LayoutGrid, Mail, Minus, Plus, ScanBarcode, Search, Trash2, UserPlus } from "lucide-react";
+import { CameraScanner } from "@/components/invoices/camera-scanner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -290,6 +291,7 @@ export function InvoiceForm({
   const taxIdLabel = getCountryConfig(company?.country).taxIdLabel;
   const [warehouseId, setWarehouseId] = useState(invoice?.warehouse_id ?? "");
   const [barcodeScan, setBarcodeScan] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [bookingPick, setBookingPick] = useState("");
   const [lines, setLines] = useState<DraftLine[]>(() =>
     invoice ? linesFromInvoice(invoice, undefined) : hotelStay ? [] : [newLine()]
@@ -1012,6 +1014,9 @@ export function InvoiceForm({
                 }}
               />
             </div>
+            <Button variant="outline" type="button" onClick={() => setCameraOpen(true)} aria-label="Scan a barcode with the camera">
+              <Camera className="h-4 w-4" /> Camera
+            </Button>
             <Button variant="secondary" onClick={() => setLines((p) => [...p, newLine()])}>
               <Plus className="h-4 w-4" /> Add another {labels.product.toLowerCase()}
             </Button>
@@ -1026,6 +1031,8 @@ export function InvoiceForm({
               </button>
             )}
           </div>
+
+          <CameraScanner open={cameraOpen} onClose={() => setCameraOpen(false)} onDetected={applyBarcode} />
 
           {showQuick && (products ?? []).length > 0 && (
             <div className="mt-4 rounded-[12px] border border-border bg-cloud/60 p-3">

@@ -7,10 +7,10 @@ How KYRO protects business data, and what to configure before going live.
 | Area | What KYRO does |
 |------|----------------|
 | Secrets | Server keys (`SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `RESEND_API_KEY`, `METALS_API_KEY`) are read only in server code and never sent to the browser. `.env*.local` is git-ignored. The full git history was scanned: no keys have ever been committed. |
-| Authentication | Supabase Auth. Passwords are hashed by Supabase (bcrypt) and never stored or logged by KYRO. Sign-up enforces strong passwords (8+ characters with upper and lower case, a number and a symbol). |
+| Authentication | Supabase Auth. Passwords are hashed by Supabase (bcrypt) and never stored or logged by KYRO. Sign-up enforces strong passwords (8+ characters with upper and lower case, a number and a symbol) and confirms the email address. Password reset by email link; the reset page never reveals whether an account exists. |
 | Tenant isolation | Row Level Security on every table: a business can only read and write its own rows (`current_org_id()`). |
-| Access control | Admin-only pages (`/settings`, `/users`, `/warehouses`) are checked on the server in middleware as well as in the UI. In the database, staff cannot change roles, promote themselves, move users between businesses, or edit business settings. |
-| Billing | Plan, trial and subscription fields can only be changed by the server (Razorpay webhook with a verified HMAC signature), never from the browser. |
+| Access control | Admin-only pages (`/settings`, `/users`, `/warehouses`) are checked on the server in middleware as well as in the UI. In the database, staff cannot change roles, promote themselves, move users between businesses, or edit business settings. The accountant role is read-only, enforced by a database trigger on every business table (including inside invoice functions). |
+| Billing | Plan, trial and subscription fields can only be changed by the server (Razorpay webhook with a verified HMAC signature), never from the browser. Plan limits (invoices per month, active products, expired trial) are enforced in the database. |
 | API endpoints | Every private endpoint checks the session and the user's business. Errors return a generic message; details are only logged on the server. |
 | Rate limiting | Shared, database-backed limits (migration 039) on sign-up, staff invites, invoice emails, WhatsApp shares, short links and checkout, plus per-IP flood protection in middleware. |
 | CSRF / CORS | State-changing API calls from other websites are rejected (Origin / Sec-Fetch-Site check). No CORS headers are sent, so other sites cannot read API responses. |
@@ -26,11 +26,12 @@ How KYRO protects business data, and what to configure before going live.
 ### Supabase (SQL Editor)
 
 1. Back up the database (Database → Backups).
-2. Run `037_vat_gcc.sql`, then `038_every_business_email.sql`, then `039_security_hardening.sql`. Each is safe to re-run.
+2. Run `037_vat_gcc.sql`, then `038_every_business_email.sql`, then `039_security_hardening.sql`, then `041_kyro_features.sql`. Each is safe to re-run.
 
 ### Supabase (Dashboard)
 
-- **Authentication → Providers → Email**: set the minimum password length to 8.
+- **Authentication → Providers → Email**: set the minimum password length to 8 and turn **Confirm email** on.
+- **Authentication → Emails → SMTP**: connect your own SMTP (e.g. Resend). The built-in sender only allows a few emails an hour, which blocks sign-ups and password resets.
 - **Authentication → Attack Protection**: turn on *leaked password protection* (needs a paid plan) and CAPTCHA if you see bot sign-ups.
 - **Authentication → Rate Limits**: keep the defaults or lower them. They protect the login form from password guessing.
 - **Authentication → URL Configuration**: set the Site URL to your live domain and remove any `localhost` redirect URLs you no longer need.
@@ -53,8 +54,9 @@ How KYRO protects business data, and what to configure before going live.
 
 ## Known limits
 
-- Plan limits (number of invoices or products per month) are enforced by the app, not the database. A technical user could go past their plan's quota through the API. They cannot change their plan or trial.
-- Sign-up creates confirmed accounts straight away (no email verification step). Turn on "Confirm email" in Supabase and switch the sign-up route to `auth.signUp` if you want verified emails.
+- Email confirmation follows the Supabase "Confirm email" switch. If it is off, accounts are confirmed straight away.
+- Sign-up and login rate limits are Supabase's own (Authentication → Rate Limits); add CAPTCHA there if bots appear.
+- Account closure is a request (`organizations.deletion_requested_at`); deleting the data is done by support after confirming by email.
 - The CSP allows inline scripts, because Next.js needs them without per-request nonces. External scripts are still blocked.
 - `npm audit` lists a few advisories in development-only build tools (Tailwind 3 / ESLint dependencies). They are not shipped to the server or browsers.
 

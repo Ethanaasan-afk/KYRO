@@ -15,7 +15,8 @@ import { buildPdfBlob, downloadInvoicePdf, printInvoicePdf } from "@/lib/invoice
 import { INVOICE_STATUS_LABELS, invoiceAmountDue } from "@/lib/invoice-payment";
 import { isDemoMode } from "@/lib/demo/mode";
 import { formatDate, formatCurrency } from "@/lib/utils";
-import { Download, MessageCircle, Pencil, Printer, Banknote, Mail, PartyPopper, Plus, X } from "lucide-react";
+import { Download, MessageCircle, Pencil, Printer, Banknote, Mail, PartyPopper, Plus, ReceiptText, Repeat, X } from "lucide-react";
+import { RepeatInvoiceModal } from "@/components/invoices/repeat-invoice-modal";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -40,7 +41,8 @@ export default function InvoiceDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const { isAdmin, user, loading: authLoading } = useAuth();
+  const { isAdmin, user, loading: authLoading, isReadOnly } = useAuth();
+  const [repeatOpen, setRepeatOpen] = useState(false);
   const { isJewellery, isHotel } = useBusinessType();
   const {
     data: invoice,
@@ -219,6 +221,16 @@ export default function InvoiceDetailPage() {
             >
               <Printer className="h-4 w-4" /> Print
             </Button>
+            <Link href={`/receipt/${invoice.id}?print=1`}>
+              <Button variant="outline" type="button">
+                <ReceiptText className="h-4 w-4" /> Receipt
+              </Button>
+            </Link>
+            {invoice.status !== "cancelled" && !isReadOnly && (
+              <Button variant="outline" type="button" onClick={() => setRepeatOpen(true)}>
+                <Repeat className="h-4 w-4" /> Repeat
+              </Button>
+            )}
             <Button loading={pdfLoading} onClick={() => handlePdf("download", 0)}>
               <Download className="h-4 w-4" /> PDF
             </Button>
@@ -693,6 +705,8 @@ export default function InvoiceDetailPage() {
           />
         </div>
       )}
+      <RepeatInvoiceModal invoice={invoice} open={repeatOpen} onClose={() => setRepeatOpen(false)} />
+
       <EmailInvoiceModal
         open={emailOpen}
         onClose={() => setEmailOpen(false)}
