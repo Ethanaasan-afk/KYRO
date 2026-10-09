@@ -562,7 +562,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     tagline: "Loose and packed goods, expiry dates, barcode billing",
     emoji: "🛒",
     categoryTree: GROCERY_TREE,
-    units: ["pcs", "kg", "g", "l", "pack", "box", "dozen", "bottle"],
+    units: ["pcs", "kg", "g", "l", "ml", "pack", "box", "dozen", "bottle", "can", "bag", "tray"],
     productFormFields: GROCERY_PRODUCT_FIELDS,
   }),
   fresh_produce: cfg(
@@ -588,7 +588,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       emoji: "🍽️",
       categoryTree: RESTAURANT_TREE,
       defaultUnit: "plate",
-      units: ["plate", "pcs", "kg", "l", "set"],
+      units: ["plate", "pcs", "set", "kg", "l", "bottle", "can"],
       defaultIsService: true,
       productFormFields: MENU_FIELDS,
       invoiceLineFields: { lineVariantTag: true },
@@ -614,7 +614,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       tagline: "IMEI and serial numbers on every sale",
       emoji: "📱",
       categoryTree: MOBILE_TREE,
-      units: ["pcs", "set", "pair", "box"],
+      units: ["pcs", "set", "pair", "box", "service"],
       productFormFields: MOBILE_PRODUCT_FIELDS,
       invoiceLineFields: { lineImeiSerial: true },
     }
@@ -627,7 +627,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       tagline: "Batch and expiry on every strip and bottle",
       emoji: "💊",
       categoryTree: PHARMACY_TREE,
-      units: ["pcs", "box", "pack", "bottle", "ml", "g"],
+      units: ["pcs", "box", "pack", "bottle", "ml", "g", "can"],
       productFormFields: PHARMACY_PRODUCT_FIELDS,
       invoiceLineFields: { lineBatchNumber: true },
     }
@@ -640,7 +640,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       tagline: "Sizes and colours, by the piece or by the metre",
       emoji: "👕",
       categoryTree: CLOTH_TREE,
-      units: ["pcs", "pair", "set", "m"],
+      units: ["pcs", "pair", "set", "dozen", "m"],
       productFormFields: CLOTH_PRODUCT_FIELDS,
       invoiceLineFields: { lineVariantTag: true },
       labels: {
@@ -671,7 +671,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       tagline: "Bags of cement, metres of cable, boxes of screws",
       emoji: "🛠️",
       categoryTree: HARDWARE_TREE,
-      units: ["pcs", "bag", "kg", "ton", "m", "ft", "sqm", "sqft", "box", "l", "roll"],
+      units: ["pcs", "bag", "kg", "ton", "m", "ft", "cm", "sqm", "sqft", "box", "l", "gal", "can", "roll"],
       productFormFields: RETAIL_FIELDS,
     }
   ),
@@ -683,7 +683,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       tagline: "Big-ticket sales with serial numbers and finishes",
       emoji: "🛋️",
       categoryTree: FURNITURE_TREE,
-      units: ["pcs", "set", "service"],
+      units: ["pcs", "set", "sqm", "sqft", "m", "service"],
       productFormFields: RETAIL_FIELDS,
       invoiceLineFields: { lineImeiSerial: true, lineVariantTag: true },
       labels: {
@@ -721,7 +721,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       emoji: "📦",
       categoryTree: WHOLESALE_TREE,
       defaultUnit: "carton",
-      units: ["carton", "box", "pack", "pcs", "kg", "bag", "ton"],
+      units: ["carton", "box", "pack", "pcs", "dozen", "kg", "bag", "ton", "l"],
       productFormFields: RETAIL_FIELDS,
     }
   ),
@@ -781,7 +781,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
       tagline: "Weight × today's gold rate, making charges included",
       emoji: "💍",
       categoryTree: JEWELLERY_TREE,
-      units: ["pcs"],
+      units: ["pcs", "g", "tola", "set", "pair"],
       productFormFields: JEWELLERY_PRODUCT_FIELDS,
       invoiceLineFields: { jewelleryPricing: true },
       labels: {
@@ -823,7 +823,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     tagline: "Any shop, any trade",
     emoji: "🏪",
     categoryTree: GENERAL_TREE,
-    units: ["pcs", "kg", "l", "m", "box", "pack", "service"],
+    units: ["pcs", "kg", "g", "l", "ml", "m", "box", "pack", "dozen", "set", "hour", "service"],
     productFormFields: RETAIL_FIELDS,
   }),
 };

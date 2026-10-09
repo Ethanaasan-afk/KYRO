@@ -109,6 +109,26 @@ export function unitNudge(id: string | null | undefined): number {
   return 1;
 }
 
+/**
+ * Units offered in the product form: the business type's own units, plus the
+ * product's current unit if it is something else. `showAll` adds every other unit.
+ */
+export function unitChoices(preferred: readonly string[], current?: string | null, showAll = false) {
+  const own = unitOptions(preferred).filter((o) => o.group === "Suggested");
+  if (showAll) {
+    return unitOptions(preferred).map((o) => ({
+      value: o.value,
+      label: o.group === "Suggested" ? o.label : `${o.label} · ${o.group}`,
+    }));
+  }
+  const list = own.map((o) => ({ value: o.value, label: o.label }));
+  if (current && !list.some((o) => o.value === getUnit(current).id)) {
+    const u = getUnit(current);
+    list.push({ value: u.id, label: `${u.label} (${u.short})` });
+  }
+  return list;
+}
+
 export function unitOptions(preferred: readonly string[] = []) {
   const seen = new Set<string>();
   const out: { value: string; label: string; group: string }[] = [];

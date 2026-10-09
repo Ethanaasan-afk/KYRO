@@ -28,7 +28,7 @@ import {
 } from "@/lib/jewellery";
 import { calcProductMargin, MARGIN_BADGE_CLASS, priceWithVat } from "@/lib/product-margin";
 import { formatCurrency, generateSku } from "@/lib/utils";
-import { getUnit, unitAllowsDecimals, unitOptions } from "@/lib/units";
+import { getUnit, unitAllowsDecimals, unitChoices } from "@/lib/units";
 import { productSchemaForFields } from "@/lib/validations";
 import type { Product } from "@/lib/types";
 import { useProductMutations, useProducts } from "@/hooks/use-products";
@@ -225,6 +225,8 @@ export function ProductFormModal({
   const category = watch("category");
   const subcategory = watch("subcategory") ?? "";
   const unit = watch("unit") || "pcs";
+  // Only the units this kind of business uses, unless the owner asks for more
+  const [showAllUnits, setShowAllUnits] = useState(false);
   const unitDef = getUnit(unit);
   const isService = Boolean(watch("is_service"));
   const basePrice = Number(watch("base_price")) || 0;
@@ -411,12 +413,18 @@ export function ProductFormModal({
                 <div key={field} className="space-y-1.5">
                   <Select
                     label="Sold by (unit)"
-                    options={unitOptions(config.units).map((o) => ({
-                      value: o.value,
-                      label: o.group === "Suggested" ? o.label : `${o.label} · ${o.group}`,
-                    }))}
+                    options={unitChoices(config.units, unit, showAllUnits)}
                     {...register("unit")}
                   />
+                  {!showAllUnits && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllUnits(true)}
+                      className="text-[11px] font-medium text-primary hover:underline"
+                    >
+                      Need a different unit? Show all units
+                    </button>
+                  )}
                   <p className="text-[11px] text-slate">
                     {unitAllowsDecimals(unit)
                       ? `Bill any amount, e.g. 1.25 ${unitDef.short}. Price below is per ${unitDef.short}.`
