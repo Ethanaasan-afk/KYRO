@@ -3,7 +3,7 @@ export const APP_NAME = "KYRO";
 export const APP_TAGLINE = "Smart billing for every business";
 export const APP_TITLE = "KYRO - Smart billing for every business";
 export const APP_DESCRIPTION =
-  "VAT-compliant invoicing, inventory, and customers for UAE businesses.";
+  "VAT and GST invoicing, inventory and customers for businesses in the Gulf, the UK, Europe and India.";
 
 /** Default invoice number prefix for new orgs (editable in Settings). */
 export const DEFAULT_INVOICE_PREFIX = "KY";

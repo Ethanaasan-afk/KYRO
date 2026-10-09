@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
 import { VAT_CATEGORIES } from "@/lib/vat";
-import { DEFAULT_COUNTRY, isValidTaxId, getCountryConfig } from "@/lib/vat/countries";
+import { DEFAULT_COUNTRY, isCountryCode, isValidTaxId, getCountryConfig } from "@/lib/vat/countries";
+
+/** ISO country we support; anything else falls back to the UAE. */
+const countryField = z
+  .string()
+  .optional()
+  .transform((v) => (isCountryCode(v) ? v.toUpperCase() : DEFAULT_COUNTRY));
 import { BUSINESS_TYPES, type ProductFormFieldId } from "@/lib/business-types";
 
 /** Empty string / blank → null; otherwise non-negative number. */
@@ -122,7 +128,7 @@ export const companySettingsSchema = z.object({
   prices_include_vat: z.boolean().default(false),
   address: z.string().min(1),
   city: z.string().min(1),
-  state: z.string().min(1, "Emirate is required"),
+  state: z.string().min(1, "Choose your emirate, state or region"),
   pincode: z.string().optional().default(""),
   phone: z.string().min(1),
   email: z.string().email("Enter a valid email"),
@@ -178,6 +184,7 @@ export const signupSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: strongPasswordSchema,
   business_type: z.enum(BUSINESS_TYPES).default("general"),
+  country: countryField,
 });
 
 /** For auth users who already have a session but no org/profile yet. */
@@ -185,4 +192,5 @@ export const completeSetupSchema = z.object({
   business_name: z.string().min(2, "Business name is required"),
   owner_name: z.string().min(1, "Owner name is required"),
   business_type: z.enum(BUSINESS_TYPES).default("general"),
+  country: countryField,
 });

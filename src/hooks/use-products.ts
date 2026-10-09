@@ -227,7 +227,30 @@ export function useProductMutations() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
   });
 
-  return { upsert, remove };
+  /** Move standard-rated products to a new tax rate (after changing country). */
+  const setTaxRate = useMutation({
+    mutationFn: async ({ products, rate }: { products: Pick<Product, "id" | "name">[]; rate: number }) => {
+      if (!products.length) return 0;
+      if (isDemoMode()) {
+        for (const p of products) demoDb.upsertProduct({ id: p.id, name: p.name, vat_rate: rate });
+        return products.length;
+      }
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("products")
+        .update({ vat_rate: rate, updated_at: new Date().toISOString() })
+        .in(
+          "id",
+          products.map((p) => p.id)
+        )
+        .eq("vat_category", "standard");
+      if (error) throw error;
+      return products.length;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
+  });
+
+  return { upsert, remove, setTaxRate };
 }
 
 export function usePriceHistory(productId: string) {

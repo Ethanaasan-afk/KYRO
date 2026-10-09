@@ -102,7 +102,7 @@ export default function InvoicesPage() {
       <PageHeader
         eyebrow="Billing"
         title="Invoices"
-        description="VAT tax invoices - standard, zero-rated and exempt supplies"
+        description="Tax invoices - standard, reduced, zero-rated and exempt supplies"
         accent="teal"
         actions={
           <>

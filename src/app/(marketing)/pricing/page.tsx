@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: `Simple ${APP_NAME} plans in AED for UAE businesses. 14-day free trial, no card required, cancel anytime.`,
+  description: `Simple ${APP_NAME} plans for businesses in the Gulf, the UK, Europe and India. 14-day free trial, no card required, cancel anytime.`,
 };
 
 const BILLING_FAQ = [
@@ -42,7 +42,7 @@ export default function PricingPage() {
         eyebrow="Pricing in AED"
         title="Simple pricing."
         accent="Pays for itself."
-        body="Every plan includes UAE tax invoices, VAT 201 summaries, email & WhatsApp sending and all 16 trades. Start free for 14 days - no card required."
+        body="Every plan includes tax invoices for your country, VAT / GST return summaries, email & WhatsApp sending and all 16 trades. Start free for 14 days - no card required."
       >
         <TrustRow />
       </PageHero>

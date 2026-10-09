@@ -68,6 +68,7 @@ export function useSupplierMutations() {
           tax_id: normalizeTaxId(payload.tax_id) || null,
           address: payload.address || null,
           state: payload.state || "",
+          ...(payload.country ? { country: payload.country } : {}),
           notes: payload.notes || null,
           is_active: payload.is_active ?? true,
           organization_id: orgId,

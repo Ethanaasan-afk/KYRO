@@ -8,7 +8,9 @@ import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
 import { createClient } from "@/lib/supabase/client";
 import type { Invoice } from "@/lib/types";
-import { cn, downloadCsv, formatCurrency, getDefaultCurrency, round2 } from "@/lib/utils";
+import { cn, downloadCsv, formatCurrency, getDefaultCurrency, roundMoney } from "@/lib/utils";
+import { useOrganization } from "@/hooks/use-company";
+import { getCountryConfig } from "@/lib/vat/countries";
 import { Download } from "lucide-react";
 import { useState } from "react";
 
@@ -16,6 +18,9 @@ type ReportsTab = "csv" | "vat";
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<ReportsTab>("vat");
+  const { data: org } = useOrganization();
+  const country = getCountryConfig(org?.country);
+  const taxName = country.taxName;
   const [from, setFrom] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -157,10 +162,12 @@ export default function ReportsPage() {
         invoice_number: inv.invoice_number,
         date: inv.invoice_date,
         customer: inv.customer?.name,
-        trn: inv.customer?.tax_id ?? "",
-        emirate: inv.customer?.state ?? "",
+        tax_number: inv.customer?.tax_id ?? "",
+        region: inv.customer?.state ?? "",
+        country: inv.customer?.country ?? "",
+        treatment: inv.tax_treatment ?? "domestic",
         taxable: inv.subtotal,
-        vat: inv.total_vat,
+        tax: inv.total_vat,
         total: inv.grand_total,
         currency: inv.currency,
       }));
@@ -171,15 +178,15 @@ export default function ReportsPage() {
         .filter((r) => r.currency === currency)
         .reduce(
           (acc, r) => ({
-            taxable: round2(acc.taxable + Number(r.taxable)),
-            vat: round2(acc.vat + Number(r.vat)),
+            taxable: roundMoney(acc.taxable + Number(r.taxable)),
+            vat: roundMoney(acc.vat + Number(r.tax)),
           }),
           { taxable: 0, vat: 0 }
         );
 
-      downloadCsv(`vat-summary-${from}-to-${to}.csv`, rows);
+      downloadCsv(`${taxName.toLowerCase()}-summary-${from}-to-${to}.csv`, rows);
       setMessage(
-        `Exported ${rows.length} invoices. Totals (${currency}) - Taxable ${formatCurrency(totals.taxable)}, VAT ${formatCurrency(totals.vat)}`
+        `Exported ${rows.length} invoices. Totals (${currency}) - Taxable ${formatCurrency(totals.taxable)}, ${taxName} ${formatCurrency(totals.vat)}`
       );
     } catch (e) {
       setMessage((e as Error).message);
@@ -193,7 +200,7 @@ export default function ReportsPage() {
       <PageHeader
         eyebrow="Reports"
         title="Reports"
-        description="VAT return summary and CSV exports for your accountant"
+        description={`${country.returnName} and CSV exports for your accountant`}
         accent="tangerine"
       />
 
@@ -202,7 +209,7 @@ export default function ReportsPage() {
         role="tablist"
         aria-label="Report sections"
       >
-        <TabButton active={tab === "vat"} onClick={() => setTab("vat")} label="VAT Return (VAT 201)" />
+        <TabButton active={tab === "vat"} onClick={() => setTab("vat")} label={country.taxSystem === "none" ? "Sales summary" : `${taxName} return (${country.returnName})`} />
         <TabButton active={tab === "csv"} onClick={() => setTab("csv")} label="CSV Exports" />
       </div>
 
@@ -230,7 +237,7 @@ export default function ReportsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <ReportCard
               title="Sales report"
-              description="Invoices & line items with VAT for the date range"
+              description={`Invoices & line items with ${taxName} for the date range`}
               onClick={exportSales}
               loading={loading === "sales"}
               accent="teal"
@@ -243,8 +250,8 @@ export default function ReportsPage() {
               accent="aqua"
             />
             <ReportCard
-              title="VAT summary"
-              description="Taxable value and VAT per invoice, with customer TRN"
+              title={`${taxName} summary`}
+              description={`Taxable value and ${taxName} per invoice, with customer ${country.taxIdLabel}`}
               onClick={exportVatSummary}
               loading={loading === "vat"}
               accent="sun"

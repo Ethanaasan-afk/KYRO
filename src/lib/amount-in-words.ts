@@ -60,10 +60,17 @@ const CURRENCY_WORDS: Record<string, CurrencyWords> = {
   SAR: { major: "Saudi Riyals", minor: "Halalas", minorPerMajor: 100 },
   BHD: { major: "Bahraini Dinars", minor: "Fils", minorPerMajor: 1000 },
   OMR: { major: "Omani Rials", minor: "Baisa", minorPerMajor: 1000 },
+  QAR: { major: "Qatari Riyals", minor: "Dirhams", minorPerMajor: 100 },
+  KWD: { major: "Kuwaiti Dinars", minor: "Fils", minorPerMajor: 1000 },
   EUR: { major: "Euros", minor: "Cents", minorPerMajor: 100 },
   GBP: { major: "Pounds Sterling", minor: "Pence", minorPerMajor: 100 },
   USD: { major: "US Dollars", minor: "Cents", minorPerMajor: 100 },
-  /** Pre-VAT invoices were issued in rupees */
+  CZK: { major: "Czech Koruna", minor: "Haléřů", minorPerMajor: 100 },
+  DKK: { major: "Danish Kroner", minor: "Øre", minorPerMajor: 100 },
+  HUF: { major: "Hungarian Forints", minor: "Fillér", minorPerMajor: 100 },
+  PLN: { major: "Polish Złoty", minor: "Groszy", minorPerMajor: 100 },
+  RON: { major: "Romanian Lei", minor: "Bani", minorPerMajor: 100 },
+  SEK: { major: "Swedish Kronor", minor: "Öre", minorPerMajor: 100 },
   INR: { major: "Rupees", minor: "Paise", minorPerMajor: 100 },
 };
 
@@ -77,6 +84,23 @@ function integerInWords(n: number): string {
     if (chunk) parts.unshift(`${threeDigits(chunk)}${scales[i] ? " " + scales[i] : ""}`);
     rest = Math.floor(rest / 1000);
   }
+  return parts.join(" ");
+}
+
+/** Indian numbering: lakh (1,00,000) and crore (1,00,00,000). */
+function integerInWordsIndian(n: number): string {
+  if (n === 0) return "Zero";
+  const parts: string[] = [];
+  const crore = Math.floor(n / 10000000);
+  let rest = n % 10000000;
+  if (crore) parts.push(`${integerInWordsIndian(crore)} Crore`);
+  const lakh = Math.floor(rest / 100000);
+  rest %= 100000;
+  if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
+  const thousand = Math.floor(rest / 1000);
+  rest %= 1000;
+  if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+  if (rest) parts.push(threeDigits(rest));
   return parts.join(" ");
 }
 
@@ -95,7 +119,8 @@ export function amountInWords(amount: number, currency = "AED"): string {
   const major = Math.floor(amount);
   const minor = Math.round((amount - major) * words.minorPerMajor);
 
-  let result = `${words.major} ${integerInWords(major)}`;
+  const inWords = currency.toUpperCase() === "INR" ? integerInWordsIndian : integerInWords;
+  let result = `${words.major} ${inWords(major)}`;
   if (minor > 0 && words.minor) {
     result += ` and ${integerInWords(minor)} ${words.minor}`;
   }

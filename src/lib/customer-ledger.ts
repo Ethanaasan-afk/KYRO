@@ -1,4 +1,4 @@
-import { round2 } from "@/lib/utils";
+import { roundMoney } from "@/lib/utils";
 import type {
   CustomerLedgerEntry,
   CustomerLedgerSummary,
@@ -12,11 +12,11 @@ export function buildCustomerLedger(
   payments: Payment[]
 ): { summary: CustomerLedgerSummary; entries: CustomerLedgerEntry[] } {
   const activeInvoices = invoices.filter((i) => i.status !== "cancelled");
-  const totalBilled = round2(
+  const totalBilled = roundMoney(
     activeInvoices.reduce((s, i) => s + Number(i.grand_total), 0)
   );
-  const totalPaid = round2(payments.reduce((s, p) => s + Number(p.amount), 0));
-  const outstanding = round2(Math.max(0, totalBilled - totalPaid));
+  const totalPaid = roundMoney(payments.reduce((s, p) => s + Number(p.amount), 0));
+  const outstanding = roundMoney(Math.max(0, totalBilled - totalPaid));
 
   type Raw = {
     id: string;
@@ -38,7 +38,7 @@ export function buildCustomerLedger(
       date: inv.invoice_date,
       created_at: inv.created_at,
       label: `Invoice ${inv.invoice_number}`,
-      delta: round2(Number(inv.grand_total)),
+      delta: roundMoney(Number(inv.grand_total)),
       invoice_id: inv.id,
     })),
     ...payments.map((p) => ({
@@ -49,7 +49,7 @@ export function buildCustomerLedger(
       label: p.invoice_id
         ? `Payment${p.invoice?.invoice_number ? ` · ${p.invoice.invoice_number}` : ""}`
         : "Payment (general)",
-      delta: -round2(Number(p.amount)),
+      delta: -roundMoney(Number(p.amount)),
       invoice_id: p.invoice_id,
       payment_id: p.id,
       payment_mode: p.payment_mode,
@@ -66,7 +66,7 @@ export function buildCustomerLedger(
 
   let running = 0;
   const entries: CustomerLedgerEntry[] = raw.map((r) => {
-    running = round2(running + r.delta);
+    running = roundMoney(running + r.delta);
     return { ...r, runningBalance: running };
   });
 

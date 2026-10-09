@@ -16,6 +16,7 @@ import { getCountryConfig } from "@/lib/vat/countries";
 export function InvoiceCompanyHeader({
   company,
   className,
+  documentTitle,
 }: {
   company: Pick<
     CompanySettings,
@@ -31,6 +32,8 @@ export function InvoiceCompanyHeader({
     | "email"
   >;
   className?: string;
+  /** Title of this document (e.g. "Simplified Tax Invoice"); defaults to the country title */
+  documentTitle?: string;
 }) {
   const title = presentText(company.brand_name) || presentText(company.company_name) || "Company";
   const legalName = presentText(company.company_name);
@@ -46,7 +49,7 @@ export function InvoiceCompanyHeader({
         {title}
       </p>
       <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate">
-        {country.invoiceTitle}
+        {documentTitle ?? country.invoiceTitle}
       </p>
       {showLegal ? <p className="mt-1 text-sm text-ink">{legalName}</p> : null}
       {addressLine ? <p className="mt-1 text-xs text-slate">{addressLine}</p> : null}

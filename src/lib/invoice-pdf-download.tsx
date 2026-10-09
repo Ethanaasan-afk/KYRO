@@ -8,6 +8,8 @@ import { normalizeBusinessType } from "@/lib/business-types";
 import { ensureInvoicePdfFonts } from "@/lib/invoice-pdf-fonts";
 import { invoicePdfDownloadFilename } from "@/lib/invoice-short-link";
 import type { CompanySettings, Invoice } from "@/lib/types";
+import { getCountryConfig } from "@/lib/vat/countries";
+import { zatcaQrDataUrl, zatcaTimestamp } from "@/lib/vat/zatca";
 
 async function toDataUrl(path: string): Promise<string | null> {
   try {
@@ -43,10 +45,21 @@ export async function buildPdfBlob(
 
   ensureInvoicePdfFonts();
 
-  const [logoSrc, wordmarkSrc, signatureSrc] = await Promise.all([
+  const taxCountry = getCountryConfig(invoice.tax_country || company.country);
+  const [logoSrc, wordmarkSrc, signatureSrc, qrSrc] = await Promise.all([
     toDataUrl(BRAND_LOGO_ICON),
     toDataUrl(BRAND_LOGO_FULL),
     company.signature_url ? toDataUrl(company.signature_url) : Promise.resolve(null),
+    // Saudi Arabia: ZATCA QR on every invoice (needs the seller's VAT number)
+    taxCountry.zatcaQr && company.tax_id
+      ? zatcaQrDataUrl({
+          sellerName: company.company_name,
+          vatNumber: company.tax_id,
+          timestamp: zatcaTimestamp(invoice.invoice_date, invoice.created_at),
+          total: Number(invoice.grand_total),
+          vatTotal: Number(invoice.total_vat),
+        }).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   return pdf(
@@ -57,6 +70,7 @@ export async function buildPdfBlob(
       logoSrc={logoSrc}
       wordmarkSrc={wordmarkSrc}
       signatureSrc={signatureSrc}
+      qrSrc={qrSrc}
       businessType={normalizeBusinessType(company.business_type)}
     />
   ).toBlob();

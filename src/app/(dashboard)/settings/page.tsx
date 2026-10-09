@@ -5,6 +5,7 @@ import { BusinessTypePicker } from "@/components/settings/business-type-picker";
 import { EmailSettingsSection } from "@/components/settings/email-settings-section";
 import { InvoiceOptionsSection } from "@/components/settings/invoice-options-section";
 import { DataSection } from "@/components/settings/data-section";
+import { ProductTaxRatesSection } from "@/components/settings/product-tax-rates-section";
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,8 @@ import { useToast } from "@/components/ui/toast";
 import { useCompanySettings, useUpdateCompanySettings } from "@/hooks/use-company";
 import { BUSINESS_TYPE_OPTIONS, type BusinessType } from "@/lib/business-types";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
-import { DEFAULT_COUNTRY, ENABLED_COUNTRIES, getCountryConfig } from "@/lib/vat/countries";
+import { DEFAULT_COUNTRY, countryOptions, getCountryConfig } from "@/lib/vat/countries";
+import { ensureTaxSchema } from "@/lib/vat/schema";
 import { isDemoMode } from "@/lib/demo/mode";
 import { companySettingsSchema } from "@/lib/validations";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,6 +44,8 @@ export default function SettingsPage() {
 
   const watchedType = watch("business_type");
   const country = getCountryConfig(watch("country"));
+  const taxName = country.taxName;
+  const countryChanged = !!data && !!watch("country") && watch("country") !== data.country;
   const typeHint =
     BUSINESS_TYPE_OPTIONS.find((o) => o.value === watchedType)?.description ?? "";
 
@@ -98,6 +102,11 @@ export default function SettingsPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
+      // Any country other than the UAE needs the multi-country database update
+      if (values.country !== "AE" && !isDemoMode()) {
+        const { createClient } = await import("@/lib/supabase/client");
+        await ensureTaxSchema(createClient());
+      }
       await update.mutateAsync({ id: data.id, ...values });
       toast("Settings saved");
       reset(values);
@@ -113,7 +122,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="Organization settings"
-        description="Letterhead, VAT registration and bank details - stored on your organization"
+        description="Country, tax registration, letterhead and bank details - stored on your organization"
       />
 
       <form
@@ -133,44 +142,71 @@ export default function SettingsPage() {
           />
           {typeHint ? <p className="mt-2 text-xs text-slate">{typeHint}</p> : null}
           <p className="mt-1 text-[11px] text-slate-dim">
-            Changes labels and optional fields only - VAT, stock and billing stay exactly the same.
+            Changes labels and optional fields only - tax, stock and billing stay exactly the same.
           </p>
         </div>
 
         <div>
-          <h2 className="mb-3 text-sm font-semibold text-ink">VAT registration</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Country &amp; tax registration</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Select
               label="Country"
-              options={ENABLED_COUNTRIES.map((c) => ({ value: c.code, label: c.name }))}
+              options={countryOptions()}
               error={errors.country?.message}
-              {...register("country")}
+              {...register("country", {
+                onChange: (e) => {
+                  // A region from another country makes no sense: clear it
+                  const next = getCountryConfig(e.target.value);
+                  const region = watch("state");
+                  if (next.regions.length && !next.regions.includes(region)) {
+                    setValue("state", "", { shouldDirty: true });
+                  }
+                },
+              })}
             />
             <Input
-              label={`${country.taxIdLabel} (VAT registration number)`}
+              label={
+                country.taxSystem === "none"
+                  ? `${country.taxIdLabel} (optional)`
+                  : `${country.taxIdLabel} (${taxName} registration number)`
+              }
               placeholder={country.taxIdPlaceholder}
               error={errors.tax_id?.message}
               {...register("tax_id")}
             />
           </div>
           <p className="mt-1.5 text-xs text-slate">
-            {country.taxIdHint}. Printed on every tax invoice. Invoices are issued in {country.currency}
-            {" "}at the {country.standardRate}% standard rate unless an item is zero-rated or exempt.
+            {country.taxSystem === "none"
+              ? `${country.name} has no VAT yet, so invoices are issued in ${country.currency} with no tax. ${country.taxIdHint}.`
+              : country.taxSystem === "gst"
+                ? `${country.taxIdHint}. Invoices are issued in ${country.currency}: CGST + SGST for customers in your state, IGST for other states. Set each product's GST rate (5%, 18%...).`
+                : `${country.taxIdHint}. Printed on every invoice. Invoices are issued in ${country.currency} at the ${country.standardRate}% standard rate unless an item has a reduced rate or is zero-rated or exempt.`}
+            {country.zatcaQr ? " Every invoice carries the ZATCA QR code." : ""}
           </p>
-          <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
-              {...register("prices_include_vat")}
-            />
-            <span>
-              <span className="font-medium text-ink">My prices include VAT</span>
-              <span className="block text-xs text-slate">
-                Default for new invoices. Turn on if your shelf/catalog prices already include VAT
-                (common in retail). You can still change it on each invoice.
+          {countryChanged ? (
+            <p className="mt-2 rounded-[10px] border border-amber/40 bg-amber/10 px-3 py-2 text-xs text-ink">
+              New invoices will use {country.name}&apos;s tax rules and {country.currency}. Invoices you
+              already issued keep their own currency and tax. Check each product&apos;s tax rate after
+              you save.
+              {country.aprilNumbering ? " Tip: set invoice numbering to April-March below." : ""}
+            </p>
+          ) : null}
+          {country.taxSystem !== "none" && (
+            <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+                {...register("prices_include_vat")}
+              />
+              <span>
+                <span className="font-medium text-ink">My prices include {taxName}</span>
+                <span className="block text-xs text-slate">
+                  Default for new invoices. Turn on if your shelf/catalog prices already include{" "}
+                  {taxName} (common in retail). You can still change it on each invoice.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -206,8 +242,12 @@ export default function SettingsPage() {
           <h2 className="mb-3 text-sm font-semibold">Bank details (invoice footer)</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <Input label="Bank name" {...register("bank_name")} />
-            <Input label="IBAN" placeholder="AE07 0331 2345 6789 0123 456" {...register("bank_account")} />
-            <Input label="SWIFT / BIC" {...register("bank_swift")} />
+            <Input
+              label={country.bankAccountLabel}
+              placeholder={country.bankAccountPlaceholder}
+              {...register("bank_account")}
+            />
+            <Input label={country.bankCodeLabel} {...register("bank_swift")} />
             <Input label="Branch" {...register("bank_branch")} />
           </div>
         </div>
@@ -229,6 +269,8 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+
+      <ProductTaxRatesSection countryCode={data.country} />
 
       <InvoiceOptionsSection />
 

@@ -80,11 +80,11 @@ export function Hero() {
             <span className="absolute h-5 w-5 animate-ping rounded-full bg-[#b65cff]/40" />
             <span className="h-2 w-2 rounded-full bg-[#b65cff]" />
           </span>
-          New · VAT 201 summary for the UAE
+          New · VAT &amp; GST for 35 countries
         </motion.div>
 
         <h1 className="mx-auto mt-7 max-w-5xl font-display text-[46px] font-extrabold leading-[1.02] tracking-[-0.045em] text-white sm:text-7xl lg:text-[96px]">
-          <WordsReveal text="VAT billing" delay={0.1} />
+          <WordsReveal text="Tax billing" delay={0.1} />
           <br />
           <WordsReveal text="done in seconds." wordClassName="landing-sheen" delay={0.35} />
         </h1>
@@ -95,7 +95,8 @@ export function Hero() {
           transition={{ duration: 0.9, ease: EASE, delay: 0.9 }}
           className="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-white/65 sm:text-xl"
         >
-          Tax invoices, stock and your VAT 201, in one calm, fast workspace built for businesses in the UAE.
+          Tax invoices, stock and your VAT or GST return, in one calm, fast workspace for businesses in the
+          UAE, Saudi Arabia and the Gulf, the UK, Europe and India.
         </motion.p>
 
         <motion.div

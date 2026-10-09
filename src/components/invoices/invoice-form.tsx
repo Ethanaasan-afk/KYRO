@@ -19,7 +19,17 @@ import { findLatestRate, useMetalRates } from "@/hooks/use-metal-rates";
 import { useProducts } from "@/hooks/use-products";
 import { useWarehouses } from "@/hooks/use-warehouses";
 import { customerTypeLabel } from "@/lib/constants";
-import { calcInvoiceTotals, normalizeVatCategory, type VatCategory } from "@/lib/vat";
+import { calcInvoiceTotals, normalizeVatCategory, type TaxTreatment, type VatCategory } from "@/lib/vat";
+import {
+  availableTreatments,
+  calcOptionsFor,
+  resolveTaxContext,
+  suggestTreatment,
+  taxFieldsFor,
+  taxSummaryRows,
+  treatmentNote,
+  TREATMENT_LABELS,
+} from "@/lib/vat/context";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
 import { getCountryConfig } from "@/lib/vat/countries";
 import { bookingNights, isActiveBookingStatus } from "@/lib/hotel";
@@ -289,6 +299,10 @@ export function InvoiceForm({
   const docCurrency = invoice?.currency ?? company?.currency;
   const money = (n: number) => formatCurrency(n, docCurrency);
   const taxIdLabel = getCountryConfig(company?.country).taxIdLabel;
+  /** Tax treatment picked for one customer; switching customer goes back to the suggestion */
+  const [treatmentPick, setTreatmentPick] = useState<{ customerId: string; treatment: TaxTreatment } | null>(
+    invoice?.tax_treatment ? { customerId: invoice.customer_id, treatment: invoice.tax_treatment } : null
+  );
   const [warehouseId, setWarehouseId] = useState(invoice?.warehouse_id ?? "");
   const [barcodeScan, setBarcodeScan] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -325,6 +339,24 @@ export function InvoiceForm({
   }, [warehouses, warehouseId]);
 
   const selectedCustomer = customers?.find((c) => c.id === customerId) ?? null;
+  // How this invoice is taxed: seller's country + region, customer's country / state / tax number
+  const taxCtx = useMemo(
+    () =>
+      resolveTaxContext({
+        sellerCountry: invoice?.tax_country ?? company?.country,
+        sellerState: company?.state,
+        currency: docCurrency,
+        customer: selectedCustomer,
+        treatment: treatmentPick && treatmentPick.customerId === customerId ? treatmentPick.treatment : null,
+      }),
+    [invoice?.tax_country, company?.country, company?.state, docCurrency, selectedCustomer, treatmentPick, customerId]
+  );
+  const taxName = taxCtx.country.taxName;
+  const customerTaxIdLabel = getCountryConfig(selectedCustomer?.country || company?.country).taxIdLabel;
+  const showTreatment =
+    !taxCtx.taxFree &&
+    (taxCtx.treatment !== "domestic" ||
+      (!!selectedCustomer?.country && selectedCustomer.country !== taxCtx.country.code));
   const customerEmail = selectedCustomer?.email?.trim() || "";
   const emailAfter = emailAfterChoice ?? !!customerEmail;
 
@@ -386,9 +418,9 @@ export function InvoiceForm({
         vatRate: hotelStay ? l.vat_rate : l.product!.vat_rate,
         vatCategory: hotelStay ? l.vat_category : l.product!.vat_category,
       })),
-      { pricesIncludeVat }
+      calcOptionsFor(taxCtx, pricesIncludeVat)
     );
-  }, [lines, selectedCustomer, hotelStay, pricesIncludeVat]);
+  }, [lines, selectedCustomer, hotelStay, pricesIncludeVat, taxCtx]);
 
   const pickProduct = (key: string, product: Product) => {
     const jewellery = lineFields.jewelleryPricing && isJewelleryProduct(product);
@@ -676,6 +708,7 @@ export function InvoiceForm({
           user_id: user.id,
           force,
           prices_include_vat: pricesIncludeVat,
+          tax: { ...taxFieldsFor(taxCtx), decimals: taxCtx.decimals, tax_free: taxCtx.taxFree },
           items,
         });
         toast(`Done! ${invoice.invoice_number} is updated.`);
@@ -689,6 +722,7 @@ export function InvoiceForm({
           user_id: user.id,
           prefix: company?.invoice_prefix ?? DEFAULT_INVOICE_PREFIX,
           prices_include_vat: pricesIncludeVat,
+          tax: { ...taxFieldsFor(taxCtx), decimals: taxCtx.decimals, tax_free: taxCtx.taxFree },
           items,
         });
         toast(`Done! Invoice ${created.invoice_number} is ready.`);
@@ -802,12 +836,15 @@ export function InvoiceForm({
             <p className="mt-3 text-sm text-slate">
               {selectedCustomer.state || "-"}
               {" · "}
-              {selectedCustomer.tax_id ? (
+              {selectedCustomer.country && selectedCustomer.country !== taxCtx.country.code
+                ? `${getCountryConfig(selectedCustomer.country).name} · `
+                : ""}
+              {taxCtx.taxFree ? null : selectedCustomer.tax_id ? (
                 <span className="text-emerald">
-                  VAT registered ({taxIdLabel} {selectedCustomer.tax_id})
+                  {taxName} registered ({customerTaxIdLabel} {selectedCustomer.tax_id})
                 </span>
               ) : (
-                <span>Not VAT registered</span>
+                <span>Not {taxName} registered</span>
               )}
             </p>
           )}
@@ -876,7 +913,7 @@ export function InvoiceForm({
                   <p className="mt-1 text-sm font-medium text-ink">{line.booking_label}</p>
                   <p className="mt-0.5 font-mono text-xs text-slate">
                     {formatDate(line.check_in_date)} → {formatDate(line.check_out_date)}
-                    {line.vat_rate ? ` · VAT ${line.vat_rate}%` : ""}
+                    {line.vat_rate && !taxCtx.taxFree ? ` · ${taxName} ${line.vat_rate}%` : ""}
                   </p>
                 </div>
                 <div className="sm:col-span-2">
@@ -910,7 +947,7 @@ export function InvoiceForm({
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     className="h-11 min-h-[44px] w-full rounded-[8px] border border-border bg-surface px-2 font-mono text-sm text-ink focus:border-emerald focus:outline-none"
                     value={line.unit_price}
                     {...getNumberInputHandlers({
@@ -1200,7 +1237,7 @@ export function InvoiceForm({
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     className="h-11 min-h-[44px] w-full rounded-[8px] border border-border bg-surface px-2 font-mono text-sm text-ink focus:border-emerald focus:outline-none"
                     value={
                       lineFields.jewelleryPricing && isJewelleryProduct(line.product)
@@ -1400,7 +1437,8 @@ export function InvoiceForm({
           {totals && (
             <div className="mt-3 flex items-center justify-between rounded-[10px] bg-primary-soft px-4 py-2.5 text-sm">
               <span className="text-slate">
-                {validLines.length} item{validLines.length === 1 ? "" : "s"} · VAT {money(totals.totalVat)}
+                {validLines.length} item{validLines.length === 1 ? "" : "s"}
+                {taxCtx.taxFree ? "" : ` · ${taxName} ${money(totals.totalVat)}`}
               </span>
               <span className="font-mono font-semibold text-ink">{money(totals.grandTotal)}</span>
             </div>
@@ -1472,45 +1510,73 @@ export function InvoiceForm({
             </ul>
           </div>
 
-          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[10px] border border-border bg-surface p-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
-              checked={pricesIncludeVat}
-              onChange={(e) => setPricesIncludeVat(e.target.checked)}
-            />
-            <span>
-              <span className="inline-flex items-center gap-1 font-medium text-ink">
-                Prices include VAT <HelpTip helpKey="prices_include_vat" />
+          {showTreatment && (
+            <div className="mt-5 rounded-[10px] border border-border bg-surface p-3">
+              <Select
+                label="Tax treatment"
+                value={taxCtx.treatment}
+                onChange={(e) =>
+                  setTreatmentPick({ customerId, treatment: e.target.value as TaxTreatment })
+                }
+                options={availableTreatments(taxCtx.country).map((t) => ({
+                  value: t,
+                  label:
+                    t === suggestTreatment(taxCtx.country, selectedCustomer)
+                      ? `${TREATMENT_LABELS[t]} (suggested)`
+                      : TREATMENT_LABELS[t],
+                }))}
+              />
+              {treatmentNote(taxCtx) ? (
+                <p className="mt-2 text-xs text-slate">Printed on the invoice: {treatmentNote(taxCtx)}</p>
+              ) : null}
+            </div>
+          )}
+
+          {taxCtx.country.taxSystem === "gst" && (
+            <p className="mt-4 text-xs text-slate">
+              Place of supply: <span className="font-medium text-ink">{taxCtx.placeOfSupply}</span>
+              {" · "}
+              {taxCtx.split === "cgst_sgst" ? "CGST + SGST (same state)" : "IGST (another state or abroad)"}
+            </p>
+          )}
+
+          {!taxCtx.taxFree && (
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[10px] border border-border bg-surface p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+                checked={pricesIncludeVat}
+                onChange={(e) => setPricesIncludeVat(e.target.checked)}
+              />
+              <span>
+                <span className="inline-flex items-center gap-1 font-medium text-ink">
+                  Prices include {taxName} <HelpTip helpKey="prices_include_vat" />
+                </span>
+                <span className="block text-xs text-slate">
+                  {pricesIncludeVat
+                    ? `${taxName} is worked out from the prices you entered.`
+                    : `${taxName} is added on top of the prices you entered.`}
+                </span>
               </span>
-              <span className="block text-xs text-slate">
-                {pricesIncludeVat
-                  ? "VAT is worked out from the prices you entered."
-                  : "VAT is added on top of the prices you entered."}
-              </span>
-            </span>
-          </label>
+            </label>
+          )}
 
           {totals ? (
             <div className="mt-5 space-y-2.5">
-              <LeaderRow label="Taxable amount" value={money(totals.subtotal)} />
-              {totals.breakdown.map((b) => (
+              <LeaderRow label={taxCtx.taxFree ? "Amount" : "Taxable amount"} value={money(totals.subtotal)} />
+              {taxSummaryRows(taxCtx, totals.breakdown, money).map((row) => (
                 <LeaderRow
-                  key={`${b.vatCategory}-${b.vatRate}`}
-                  label={
-                    b.vatCategory === "standard"
-                      ? `VAT ${b.vatRate}% on ${money(b.taxableValue)}`
-                      : `${b.vatCategory === "zero" ? "Zero-rated" : "Exempt"} ${money(b.taxableValue)}`
-                  }
-                  value={money(b.vatAmount)}
-                  helpKey={b.vatCategory === "standard" ? "vat" : undefined}
+                  key={row.key}
+                  label={row.label}
+                  value={money(row.amount)}
+                  helpKey={row.helpVat ? "vat" : undefined}
                 />
               ))}
-              <LeaderRow label="Total VAT" value={money(totals.totalVat)} />
+              {!taxCtx.taxFree && <LeaderRow label={`Total ${taxName}`} value={money(totals.totalVat)} />}
               <div className="mt-3 rounded-[10px] border border-sage bg-sage-soft px-3 py-3">
                 <div className="flex items-end justify-between gap-3">
                   <span className="font-display text-xs font-semibold uppercase tracking-[0.06em] text-sage">
-                    Total (incl. VAT)
+                    {taxCtx.taxFree ? "Total" : `Total (incl. ${taxName})`}
                   </span>
                   <span className="font-display text-2xl font-semibold tracking-tight text-sage">
                     <span className="font-mono">{money(totals.grandTotal)}</span>

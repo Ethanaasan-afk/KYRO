@@ -10,6 +10,52 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/** Round to `decimals` places (2 for most currencies, 3 for BHD / OMR / KWD). */
+export function roundTo(n: number, decimals = 2): number {
+  const f = 10 ** decimals;
+  return Math.round((n + Number.EPSILON) * f) / f;
+}
+
+/**
+ * Round an amount of any currency: 3 places keeps dinar / rial fils exact and
+ * changes nothing for 2-decimal currencies (it only clears float noise).
+ */
+export function roundMoney(n: number): number {
+  return roundTo(n, 3);
+}
+
+const decimalsCache = new Map<string, number>();
+
+/** Minor-unit digits of an ISO currency (AED 2, BHD 3, JPY 0). */
+export function currencyDecimals(currency: string | null | undefined): number {
+  const code = (currency || defaultCurrency).toUpperCase();
+  const cached = decimalsCache.get(code);
+  if (cached !== undefined) return cached;
+  let digits = 2;
+  try {
+    digits = new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions()
+      .maximumFractionDigits ?? 2;
+  } catch {
+    digits = 2;
+  }
+  decimalsCache.set(code, digits);
+  return digits;
+}
+
+/** Number locale that prints the currency the way its users expect. */
+export function currencyLocale(currency: string): string {
+  switch (currency) {
+    case "INR":
+      return "en-IN";
+    case "GBP":
+      return "en-GB";
+    case "EUR":
+      return "en-IE";
+    default:
+      return "en-AE";
+  }
+}
+
 let defaultCurrency = "AED";
 
 /** Set once the organization loads, so screens format in the org's currency. */
@@ -28,12 +74,12 @@ export function getDefaultCurrency(): string {
 export function formatCurrency(amount: number, currency: string | null | undefined = defaultCurrency): string {
   const code = currency || defaultCurrency;
   try {
-    return new Intl.NumberFormat(code === "INR" ? "en-IN" : "en-AE", {
+    return new Intl.NumberFormat(currencyLocale(code), {
       style: "currency",
       currency: code,
     }).format(amount);
   } catch {
-    return `${code} ${amount.toFixed(2)}`;
+    return `${code} ${amount.toFixed(currencyDecimals(code))}`;
   }
 }
 

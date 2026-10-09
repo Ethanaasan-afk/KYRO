@@ -63,12 +63,12 @@ export default function PurchasesPage() {
         <PageHeader
           eyebrow="Purchases"
           title="Purchases"
-          description="Stock-in from suppliers with input VAT"
+          description="Stock-in from suppliers with input tax"
         />
         <PlanUpgradeBanner
           requiredPlan="Pro"
           title="Purchases are on Pro and Business"
-          description="Record supplier bills, update stock, and track recoverable input VAT. Upgrade to unlock purchases, suppliers, and credit notes."
+          description="Record supplier bills, update stock, and track recoverable input tax. Upgrade to unlock purchases, suppliers, and credit notes."
         />
       </div>
     );
@@ -215,7 +215,7 @@ export default function PurchasesPage() {
                   label={idx === 0 ? "Unit cost" : undefined}
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="any"
                   value={line.unit_cost}
                   onChange={(e) =>
                     setLines((prev) =>
@@ -280,7 +280,7 @@ export default function PurchasesPage() {
                   <td>{formatDate(p.purchase_date)}</td>
                   <td>{p.supplier?.name ?? "-"}</td>
                   <td>{p.warehouse?.name ?? "-"}</td>
-                  <td className="num">{formatCurrency(p.grand_total)}</td>
+                  <td className="num">{formatCurrency(p.grand_total, p.currency)}</td>
                   <td>
                     <Badge variant={p.status === "received" ? "success" : "danger"}>
                       {p.status}

@@ -12,6 +12,7 @@ import {
   type BusinessType,
 } from "@/lib/business-types";
 import { createClient } from "@/lib/supabase/client";
+import { countryOptions, getCountryConfig, guessCountryFromTimeZone } from "@/lib/vat/countries";
 import {
   passwordStrengthChecks,
   signupSchema,
@@ -42,6 +43,9 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [businessType, setBusinessType] = useState<BusinessType>(DEFAULT_BUSINESS_TYPE);
+  const [country, setCountry] = useState<string>("AE");
+  // Start from the visitor's own country (by time zone); they can change it
+  useEffect(() => setCountry(guessCountryFromTimeZone()), []);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -71,6 +75,7 @@ export default function SignupPage() {
       email,
       password,
       business_type: businessType,
+      country,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the form and try again");
@@ -92,6 +97,7 @@ export default function SignupPage() {
             full_name: ownerName.trim(),
             business_name: businessName.trim(),
             business_type: businessType,
+            country,
           },
         },
       });
@@ -117,6 +123,7 @@ export default function SignupPage() {
           business_name: businessName,
           owner_name: ownerName,
           business_type: businessType,
+          country,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -271,6 +278,20 @@ export default function SignupPage() {
             />
             <p className="mt-1.5 text-[11px] text-slate">{selectedDesc}</p>
           </div>
+          <Select
+            id="country"
+            label="Country"
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            options={countryOptions()}
+          />
+          <p className="-mt-2 text-[11px] text-slate">
+            Sets your currency and tax: {getCountryConfig(country).currency},{" "}
+            {getCountryConfig(country).taxSystem === "none"
+              ? "no VAT"
+              : `${getCountryConfig(country).taxName} ${getCountryConfig(country).standardRate}% standard rate`}
+            . You can change it later in Settings.
+          </p>
           <Input
             id="owner_name"
             label="Your name"

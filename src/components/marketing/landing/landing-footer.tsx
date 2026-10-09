@@ -52,8 +52,8 @@ export function LandingFooter() {
               <span className="font-display text-xl font-extrabold tracking-tight text-white">{APP_NAME}</span>
             </Link>
             <p className="mt-4 max-w-sm text-[15px] leading-relaxed text-white/55">
-              VAT billing, stock and payments for every kind of business in the UAE - from the corner vegetable stall to the
-              furniture showroom.
+              VAT and GST billing, stock and payments for every kind of business - from the corner vegetable stall in
+              Dubai to the furniture showroom in Manchester.
             </p>
             <a
               href={`mailto:${LEGAL_SUPPORT_EMAIL}`}
@@ -93,7 +93,7 @@ export function LandingFooter() {
             © {new Date().getFullYear()} {LEGAL_ENTITY_NAME}. All rights reserved.
           </p>
           <p className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#34d399]" /> Built for UAE VAT · AED · TRN-ready
+            <span className="h-1.5 w-1.5 rounded-full bg-[#34d399]" /> VAT &amp; GST ready · Gulf, UK, Europe &amp; India
           </p>
         </div>
       </div>

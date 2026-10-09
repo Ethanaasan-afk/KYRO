@@ -79,8 +79,8 @@ export function companySettingsToOrganizationPatch(
   ) {
     const parts = [
       values.bank_name,
-      values.bank_account ? `IBAN ${values.bank_account}` : "",
-      values.bank_swift ? `SWIFT ${values.bank_swift}` : "",
+      values.bank_account ? `A/c ${values.bank_account}` : "",
+      values.bank_swift ? `Code ${values.bank_swift}` : "",
       values.bank_branch,
     ].filter(Boolean);
     patch.bank_details = parts.length ? parts.join(" · ") : null;

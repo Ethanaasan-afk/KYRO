@@ -4,13 +4,56 @@ import { useAuth } from "@/components/auth-provider";
 import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
 import { createClient } from "@/lib/supabase/client";
-import { calcInvoiceTotals, normalizeVatCategory, type VatCategory } from "@/lib/vat";
+import { calcInvoiceTotals, normalizeVatCategory, type CalcOptions, type VatCategory } from "@/lib/vat";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
 import { requireOrganizationId } from "@/lib/org";
 import { checkPlanLimit, planLimitErrorMessage } from "@/lib/billing/limits";
 import type { CreateInvoicePayload, Invoice, UpdateInvoicePayload } from "@/lib/types";
 import { useOrgAccess } from "@/hooks/use-org-access";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { ensureTaxSchema, needsTaxSchema } from "@/lib/vat/schema";
+import { resolveTaxContext, taxFieldsFor, type TaxParty } from "@/lib/vat/context";
+import { useOrganization } from "@/hooks/use-company";
+
+type TaxPayload = CreateInvoicePayload["tax"];
+
+function calcOptionsFromPayload(tax: TaxPayload, pricesIncludeVat: boolean): CalcOptions {
+  if (!tax) return { pricesIncludeVat };
+  return {
+    pricesIncludeVat,
+    decimals: tax.decimals,
+    split: tax.tax_split,
+    treatment: tax.tax_treatment,
+    taxFree: tax.tax_free,
+  };
+}
+
+/** Anything beyond a plain UAE local sale needs migration 042's columns. */
+function needsTaxColumns(tax: TaxPayload): boolean {
+  return !!tax && needsTaxSchema(tax);
+}
+
+async function assertTaxColumns(supabase: SupabaseClient, tax: TaxPayload) {
+  if (needsTaxColumns(tax)) await ensureTaxSchema(supabase);
+}
+
+/** Stamp the tax rules on the invoice so it always prints the way it was issued. */
+async function stampTaxFields(supabase: SupabaseClient, invoice: Invoice, tax: TaxPayload) {
+  if (!tax) return;
+  const fields = {
+    tax_country: tax.tax_country,
+    tax_treatment: tax.tax_treatment,
+    tax_split: tax.tax_split,
+    place_of_supply: tax.place_of_supply,
+  };
+  const { error } = await supabase.from("invoices").update(fields).eq("id", invoice.id);
+  if (error) {
+    if (needsTaxColumns(tax)) throw error;
+    return;
+  }
+  Object.assign(invoice, fields);
+}
 
 /** Disambiguate invoices→users FKs (created_by vs edited_by). */
 const INVOICE_LIST_SELECT =
@@ -117,11 +160,27 @@ export function useInvoiceMutations() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { assertCanCreate } = useOrgAccess();
+  const { data: org } = useOrganization();
+
+  /** Tax rules for callers that don't pass them (recurring and repeated invoices). */
+  const defaultTax = (customer?: TaxParty | null): TaxPayload => {
+    if (!org) return undefined;
+    const ctx = resolveTaxContext({
+      sellerCountry: org.country,
+      sellerState: org.state,
+      currency: org.currency,
+      customer,
+    });
+    return { ...taxFieldsFor(ctx), decimals: ctx.decimals, tax_free: ctx.taxFree };
+  };
 
   const create = useMutation({
-    mutationFn: async (payload: CreateInvoicePayload & { user_id: string; prefix: string }) => {
+    mutationFn: async (input: CreateInvoicePayload & { user_id: string; prefix: string }) => {
       assertCanCreate();
-      if (isDemoMode()) return demoDb.createInvoice(payload);
+      if (isDemoMode()) {
+        const demoCustomer = demoDb.getCustomers().find((c) => c.id === input.customer_id);
+        return demoDb.createInvoice({ ...input, tax: input.tax ?? defaultTax(demoCustomer) });
+      }
 
       const orgId = requireOrganizationId(user);
       const supabase = createClient();
@@ -131,9 +190,11 @@ export function useInvoiceMutations() {
       const { data: customer, error: cErr } = await supabase
         .from("customers")
         .select("*")
-        .eq("id", payload.customer_id)
+        .eq("id", input.customer_id)
         .single();
       if (cErr || !customer) throw cErr ?? new Error("Customer not found");
+      const payload = { ...input, tax: input.tax ?? defaultTax(customer) };
+      await assertTaxColumns(supabase, payload.tax);
 
       const productIds = payload.items
         .map((i) => i.product_id)
@@ -169,7 +230,7 @@ export function useInvoiceMutations() {
       });
 
       const pricesIncludeVat = !!payload.prices_include_vat;
-      const totals = calcInvoiceTotals(lineInputs, { pricesIncludeVat });
+      const totals = calcInvoiceTotals(lineInputs, calcOptionsFromPayload(payload.tax, pricesIncludeVat));
 
       // Single RPC: allocates invoice number + inserts invoice/items/stock
       // inside one Postgres transaction (all-or-nothing).
@@ -226,6 +287,7 @@ export function useInvoiceMutations() {
       if (error) throw error;
 
       const invoice = normalizeRpcInvoice(data);
+      await stampTaxFields(supabase, invoice, payload.tax);
 
       // Allocate public short PDF link code (best-effort; also lazy on WhatsApp share)
       try {
@@ -271,12 +333,14 @@ export function useInvoiceMutations() {
           notes: input.notes,
           items: input.items,
           prices_include_vat: input.prices_include_vat,
+          tax: input.tax,
           user_id: input.user_id,
           force: input.force,
         });
       }
 
       const supabase = createClient();
+      await assertTaxColumns(supabase, input.tax);
       const { data: customer, error: cErr } = await supabase
         .from("customers")
         .select("*")
@@ -318,7 +382,7 @@ export function useInvoiceMutations() {
       });
 
       const pricesIncludeVat = !!input.prices_include_vat;
-      const totals = calcInvoiceTotals(lineInputs, { pricesIncludeVat });
+      const totals = calcInvoiceTotals(lineInputs, calcOptionsFromPayload(input.tax, pricesIncludeVat));
 
       const rpcPayload = {
         customer_id: input.customer_id,
@@ -374,6 +438,7 @@ export function useInvoiceMutations() {
       if (error) throw error;
 
       const invoice = normalizeRpcInvoice(data);
+      await stampTaxFields(supabase, invoice, input.tax);
       return invoice;
     },
     onSuccess: (invoice, vars) => {

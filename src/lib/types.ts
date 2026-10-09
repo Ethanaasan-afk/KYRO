@@ -8,7 +8,7 @@ import type {
   UserRole,
 } from "./constants";
 import type { BusinessType } from "./business-types";
-import type { VatCategory } from "./vat";
+import type { TaxSplit, TaxTreatment, VatCategory } from "./vat";
 import type { InvoiceLanguage } from "./invoice-arabic";
 
 export interface AppUser {
@@ -199,6 +199,9 @@ export interface Purchase {
   grand_total: number;
   /** ISO currency the document was issued in (pre-VAT documents are INR) */
   currency: string;
+  /** Tax rules the purchase was recorded under (India: input CGST+SGST vs IGST) */
+  tax_country?: string | null;
+  tax_split?: TaxSplit | null;
   status: "received" | "cancelled";
   notes: string | null;
   created_by: string | null;
@@ -236,6 +239,11 @@ export interface CreditNote {
   grand_total: number;
   /** ISO currency the document was issued in (pre-VAT documents are INR) */
   currency: string;
+  /** Copied from the credited invoice */
+  tax_country?: string | null;
+  tax_treatment?: TaxTreatment | null;
+  tax_split?: TaxSplit | null;
+  place_of_supply?: string | null;
   reason: string | null;
   status: "issued" | "cancelled";
   created_by: string | null;
@@ -358,6 +366,14 @@ export interface Invoice {
   prices_include_vat?: boolean;
   /** Sum of payments applied to this invoice */
   amount_paid?: number;
+  /** Country whose tax rules the invoice was issued under (stamped at issue) */
+  tax_country?: string | null;
+  /** domestic | reverse_charge | export */
+  tax_treatment?: TaxTreatment | null;
+  /** single | cgst_sgst | igst (India) */
+  tax_split?: TaxSplit | null;
+  /** Printed place of supply, e.g. "Dubai" or "Karnataka (29)" */
+  place_of_supply?: string | null;
   status: InvoiceStatus;
   cancelled_reason: string | null;
   notes: string | null;
@@ -426,6 +442,8 @@ export interface CreateInvoicePayload {
   notes?: string;
   warehouse_id?: string | null;
   prices_include_vat?: boolean;
+  /** How the invoice is taxed, resolved by the invoice form (see lib/vat/context) */
+  tax?: InvoiceTaxFields & { decimals: number; tax_free: boolean };
   items: {
     product_id?: string | null;
     quantity: number;
@@ -452,6 +470,13 @@ export interface CreateInvoicePayload {
     vat_rate?: number | null;
     vat_category?: VatCategory | null;
   }[];
+}
+
+export interface InvoiceTaxFields {
+  tax_country: string;
+  tax_treatment: TaxTreatment;
+  tax_split: TaxSplit;
+  place_of_supply: string;
 }
 
 export type UpdateInvoicePayload = CreateInvoicePayload & {

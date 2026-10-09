@@ -4,7 +4,9 @@ import { useAuth } from "@/components/auth-provider";
 import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
 import { calcInvoiceTotals, normalizeVatCategory } from "@/lib/vat";
-import { getDefaultCurrency } from "@/lib/utils";
+import { calcOptionsFor, resolveTaxContext } from "@/lib/vat/context";
+import { ensureTaxSchema, needsTaxSchema } from "@/lib/vat/schema";
+import { useOrganization } from "@/hooks/use-company";
 import { requireOrganizationId } from "@/lib/org";
 import { createClient } from "@/lib/supabase/client";
 import type { Purchase } from "@/lib/types";
@@ -63,6 +65,7 @@ export function usePurchaseMutations() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const { assertCanCreate, assertCapability } = useOrgAccess();
+  const { data: org } = useOrganization();
 
   const create = useMutation({
     mutationFn: async (payload: CreatePurchasePayload) => {
@@ -71,6 +74,7 @@ export function usePurchaseMutations() {
         assertCapability("purchasesCreditNotes");
         return demoDb.createPurchase(payload);
       }
+      if (!org) throw new Error("Your business details are still loading. Try again in a moment.");
 
       const orgId = requireOrganizationId(user);
       const supabase = createClient();
@@ -86,12 +90,25 @@ export function usePurchaseMutations() {
         );
       if (pErr) throw pErr;
 
-      const { error: sErr } = await supabase
+      const { data: supplier, error: sErr } = await supabase
         .from("suppliers")
-        .select("id")
+        .select("id, country, state, tax_id")
         .eq("id", payload.supplier_id)
         .single();
       if (sErr) throw sErr;
+
+      // Input tax follows the same rules as sales: India splits CGST + SGST
+      // for a supplier in your state, IGST for one in another state.
+      const ctx = resolveTaxContext({
+        sellerCountry: org.country,
+        sellerState: org.state,
+        currency: org.currency,
+        customer: supplier,
+        treatment: "domestic",
+      });
+      const taxFields = { tax_country: ctx.country.code, tax_split: ctx.split };
+      const stampTax = needsTaxSchema({ ...taxFields, decimals: ctx.decimals });
+      if (stampTax) await ensureTaxSchema(supabase);
 
       const lineInputs = payload.items.map((item) => {
         const product = products?.find((p) => p.id === item.product_id);
@@ -103,7 +120,7 @@ export function usePurchaseMutations() {
           vatCategory: normalizeVatCategory(product.vat_category, Number(product.vat_rate)),
         };
       });
-      const totals = calcInvoiceTotals(lineInputs);
+      const totals = calcInvoiceTotals(lineInputs, calcOptionsFor(ctx, false));
 
       const { data: purchaseNumber, error: nErr } = await supabase.rpc(
         "next_purchase_number",
@@ -120,7 +137,8 @@ export function usePurchaseMutations() {
           purchase_date: payload.purchase_date,
           subtotal: totals.subtotal,
           total_vat: totals.totalVat,
-          currency: getDefaultCurrency(),
+          currency: ctx.currency,
+          ...(stampTax ? taxFields : {}),
           round_off: totals.roundOff,
           grand_total: totals.grandTotal,
           status: "received",

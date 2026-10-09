@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
 import { rateLimit, tooManyRequests } from "@/lib/security/rate-limit";
 import { serverError } from "@/lib/security/request";
+import { getCountryConfig } from "@/lib/vat/countries";
 
 function uniqueSlug(base: string): string {
   const suffix = Math.random().toString(36).slice(2, 7);
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     }
 
     const { business_name, owner_name, business_type } = parsed.data;
+    const country = getCountryConfig(parsed.data.country);
     const resolvedType = normalizeBusinessType(business_type ?? DEFAULT_BUSINESS_TYPE);
 
     const { data: existing } = await admin
@@ -66,6 +68,8 @@ export async function POST(request: Request) {
           slug,
           brand_name: business_name.trim(),
           state: "",
+          country: country.code,
+          currency: country.currency,
           email: authUser.email ?? "",
           invoice_prefix: DEFAULT_INVOICE_PREFIX,
           plan: "free",
@@ -107,6 +111,11 @@ export async function POST(request: Request) {
       .from("organizations")
       .update({ business_type: resolvedType })
       .eq("id", orgId);
+
+    // India numbers invoices by financial year (April - March)
+    if (country.aprilNumbering) {
+      await admin.from("organizations").update({ numbering_period: "april" }).eq("id", orgId);
+    }
 
     await admin.from("warehouses").insert({
       name: "Main warehouse",

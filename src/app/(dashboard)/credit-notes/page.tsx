@@ -124,7 +124,7 @@ export default function CreditNotesPage() {
               placeholder="Select invoice…"
               options={eligible.map((inv) => ({
                 value: inv.id,
-                label: `${inv.invoice_number} - ${inv.customer?.name ?? ""} (${formatCurrency(inv.grand_total)})`,
+                label: `${inv.invoice_number} - ${inv.customer?.name ?? ""} (${formatCurrency(inv.grand_total, inv.currency)})`,
               }))}
             />
             <Input
@@ -171,7 +171,7 @@ export default function CreditNotesPage() {
                           })}
                         />
                       </td>
-                      <td className="num">{formatCurrency(it.unit_price)}</td>
+                      <td className="num">{formatCurrency(it.unit_price, selected.currency)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -223,7 +223,7 @@ export default function CreditNotesPage() {
                     {n.invoice?.invoice_number ?? "-"}
                   </td>
                   <td>{n.customer?.name ?? "-"}</td>
-                  <td className="num">{formatCurrency(n.grand_total)}</td>
+                  <td className="num">{formatCurrency(n.grand_total, n.currency)}</td>
                   <td>
                     <Badge variant={n.status === "issued" ? "info" : "danger"}>
                       {n.status}

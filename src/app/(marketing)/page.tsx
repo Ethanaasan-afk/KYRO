@@ -44,12 +44,12 @@ const FAQ_ITEMS = [
     a: "Yes - one at a time from the invoice page, many at once from the invoice list, or payment reminders to everyone who owes you. Each email carries the PDF tax invoice and a secure download link, and replies come straight to your business email.",
   },
   {
-    q: "Are the tax invoices FTA compliant?",
-    a: "Invoices are laid out as UAE tax invoices: your TRN, the customer's TRN where they have one, VAT per line, a VAT summary by rate and totals in AED. Always confirm the requirements for your own business with your accountant.",
+    q: "Which countries' tax rules does it follow?",
+    a: "The UAE, Saudi Arabia (with the ZATCA QR code), Bahrain, Oman, Qatar and Kuwait, the United Kingdom, all 27 EU countries and India (CGST, SGST and IGST). Each invoice carries your tax number, the customer's where they have one, tax per line and a summary by rate, in your currency. Reverse charge and exports are handled too. Always confirm the requirements for your own business with your accountant.",
   },
   {
     q: "Do you file my VAT return for me?",
-    a: `No. ${APP_NAME} prepares a VAT 201 summary and Excel workbook from your invoices and purchases. You or your accountant still file it on EmaraTax.`,
+    a: `No. ${APP_NAME} prepares a return summary laid out like yours (UAE VAT 201, Saudi VAT return, UK 9-box, India GSTR-3B and more) plus an Excel workbook from your invoices and purchases. You or your accountant still file it.`,
   },
   {
     q: "Is my data safe?",

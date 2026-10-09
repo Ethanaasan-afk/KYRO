@@ -9,6 +9,36 @@
         "dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "demo",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "next",
+        "dev",
+        "-p",
+        "3002"
+      ],
+      "env": {
+        "DEMO_MODE": "true",
+        "NEXT_PUBLIC_DEMO_MODE": "true",
+        "NEXT_DIST_DIR": ".next-demo"
+      },
+      "port": 3002
+    },
+    {
+      "name": "prod",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "next",
+        "start",
+        "-p",
+        "3004"
+      ],
+      "env": {
+        "NEXT_DIST_DIR": ".next-build"
+      },
+      "port": 3004
     }
   ]
 }

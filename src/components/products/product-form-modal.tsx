@@ -78,6 +78,10 @@ export function ProductFormModal({
   const { labels, businessType, isJewellery, isHotel, config } = useBusinessType();
   const { data: company } = useCompanySettings();
   const country = getCountryConfig(company?.country);
+  const taxName = country.taxName;
+  const taxFree = country.taxSystem === "none";
+  // Gold / jewellery: India 3% GST, elsewhere the jewellery default or the standard rate
+  const jewelleryRate = taxFree ? 0 : country.jewelleryRate ?? (country.code === "AE" ? JEWELLERY_DEFAULT_VAT : country.standardRate);
   const { data: allProducts } = useProducts();
   const { data: metalRates } = useMetalRates();
   const { data: liveMarket } = useLiveMarketRates(isJewellery);
@@ -113,7 +117,7 @@ export function ProductFormModal({
       hsn_code: "",
       base_price: 0,
       manufacturing_cost: null,
-      vat_rate: isJewellery ? JEWELLERY_DEFAULT_VAT : country.standardRate,
+      vat_rate: isJewellery ? jewelleryRate : country.standardRate,
       vat_category: "standard",
       reorder_threshold: visible.has("reorder_threshold") ? 10 : 0,
       is_active: true,
@@ -132,7 +136,7 @@ export function ProductFormModal({
       stone_value: 0,
       wastage_percent: 0,
     }),
-    [categoryOptions, usualCategory, visible, isJewellery, isHotel, country.standardRate, config.defaultUnit, config.defaultIsService]
+    [categoryOptions, usualCategory, visible, isJewellery, isHotel, country.standardRate, jewelleryRate, config.defaultUnit, config.defaultIsService]
   );
 
   const schema = useMemo(() => productSchemaForFields(visible), [visible]);
@@ -346,7 +350,7 @@ export function ProductFormModal({
         ? values.manufacturing_cost ?? null
         : null,
       vat_category: values.vat_category as Product["vat_category"],
-      vat_rate: values.vat_category === "standard" ? values.vat_rate : 0,
+      vat_rate: !taxFree && values.vat_category === "standard" ? values.vat_rate : 0,
       reorder_threshold: asService
         ? 0
         : show("reorder_threshold")
@@ -510,7 +514,7 @@ export function ProductFormModal({
               return (
                 <Input
                   key={field}
-                  label="Item code (optional)"
+                  label={country.taxSystem === "gst" ? "HSN / SAC code" : "Item code (optional)"}
                   helpKey="hsn_code"
                   error={errors.hsn_code?.message}
                   {...register("hsn_code")}
@@ -520,9 +524,9 @@ export function ProductFormModal({
               return (
                 <Input
                   key={field}
-                  label={`Price per ${unitDef.short} (excl. VAT)`}
+                  label={taxFree ? `Price per ${unitDef.short}` : `Price per ${unitDef.short} (excl. ${taxName})`}
                   type="number"
-                  step="0.01"
+                  step="any"
                   error={errors.base_price?.message}
                   {...register("base_price")}
                 />
@@ -557,10 +561,12 @@ export function ProductFormModal({
                 </div>
               );
             case "vat_rate":
+              // No sales tax in this country: every product is 0%
+              if (taxFree) return null;
               return (
                 <div key={field} className="contents">
                   <Select
-                    label="VAT treatment"
+                    label={`${taxName} treatment`}
                     helpKey="vat_category"
                     options={VAT_CATEGORIES.map((c) => ({ value: c, label: VAT_CATEGORY_LABELS[c] }))}
                     error={errors.vat_category?.message}
@@ -570,25 +576,47 @@ export function ProductFormModal({
                           "vat_rate",
                           e.target.value === "standard"
                             ? isJewellery
-                              ? JEWELLERY_DEFAULT_VAT
+                              ? jewelleryRate
                               : country.standardRate
                             : 0
                         ),
                     })}
                   />
                   {vatCategory === "standard" ? (
-                    <Input
-                      label="VAT rate %"
-                      helpKey="vat_rate"
-                      help={isJewellery ? JEWELLERY_VAT_HELP : undefined}
-                      type="number"
-                      step="0.01"
-                      error={errors.vat_rate?.message}
-                      {...register("vat_rate")}
-                    />
+                    <div>
+                      <Input
+                        label={`${taxName} rate %`}
+                        helpKey="vat_rate"
+                        help={isJewellery && country.code === "AE" ? JEWELLERY_VAT_HELP : undefined}
+                        type="number"
+                        step="0.01"
+                        error={errors.vat_rate?.message}
+                        {...register("vat_rate")}
+                      />
+                      {/* Quick-pick the rates used in this country */}
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {country.rates
+                          .filter((r) => r.rate > 0)
+                          .map((r) => (
+                            <button
+                              key={r.rate}
+                              type="button"
+                              title={r.label}
+                              onClick={() => setValue("vat_rate", r.rate, { shouldDirty: true })}
+                              className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                Number(watch("vat_rate")) === r.rate
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border text-slate hover:border-primary/40"
+                              }`}
+                            >
+                              {r.rate}%
+                            </button>
+                          ))}
+                      </div>
+                    </div>
                   ) : null}
                   <p className="self-end font-mono text-xs text-slate sm:pb-2">
-                    Final price with VAT:{" "}
+                    Final price with {taxName}:{" "}
                     <span className="font-medium text-ink">{formatCurrency(finalWithVat)}</span>
                   </p>
                 </div>
@@ -753,7 +781,7 @@ export function ProductFormModal({
                 <>
                   <p className="mt-2 font-display text-lg font-semibold text-ink">
                     {formatCurrency(jewelleryPreview?.taxableValue ?? 0)}
-                    <span className="ml-2 text-xs font-normal text-slate">excl. VAT</span>
+                    <span className="ml-2 text-xs font-normal text-slate">{taxFree ? "" : `excl. ${taxName}`}</span>
                   </p>
                   <p className="mt-2 font-mono text-xs text-ink">
                     Metal {formatCurrency(jewelleryPreview?.metalValue ?? 0)} (

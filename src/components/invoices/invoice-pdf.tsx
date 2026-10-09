@@ -10,8 +10,16 @@ import {
 } from "@react-pdf/renderer";
 import { amountInWords } from "@/lib/amount-in-words";
 import { APP_NAME, BRAND_COLORS } from "@/lib/brand";
-import { buildVatBreakdown, normalizeVatCategory } from "@/lib/vat";
 import { getCountryConfig } from "@/lib/vat/countries";
+import {
+  contextForDocument,
+  documentBreakdown,
+  invoiceTitleFor,
+  lineRateLabel,
+  taxSummaryRows,
+  treatmentNote,
+} from "@/lib/vat/context";
+import { currencyDecimals } from "@/lib/utils";
 import {
   getBusinessTypeConfig,
   showsProductFormField,
@@ -328,6 +336,19 @@ function createStyles(fontFamily: string[], bold: string[]) {
       color: BRAND_COLORS.primary,
       marginRight: 8,
     },
+    noteBox: {
+      marginTop: 8,
+      fontSize: 8,
+      color: BRAND_COLORS.ink,
+    },
+    qrRow: {
+      marginTop: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-end",
+    },
+    qrImage: { width: 78, height: 78 },
+    qrLabel: { fontSize: 7, color: BRAND_COLORS.muted, marginRight: 8, textAlign: "right" },
     payLink: {
       fontSize: 8.5,
       color: BRAND_COLORS.ink,
@@ -345,17 +366,11 @@ function createStyles(fontFamily: string[], bold: string[]) {
 /** PDF-only money format: currency code prefix, since standard PDF fonts lack symbols like ₹. */
 function pdfMoney(n: number, currency: string) {
   const code = currency === "INR" ? "Rs." : currency;
+  const digits = currencyDecimals(currency);
   return `${code} ${Number(n).toLocaleString(currency === "INR" ? "en-IN" : "en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   })}`;
-}
-
-function vatLabel(item: InvoiceItem): string {
-  const cat = normalizeVatCategory(item.vat_category, Number(item.vat_rate));
-  if (cat === "exempt") return "Exempt";
-  if (cat === "zero") return "0%";
-  return `${item.vat_rate}%`;
 }
 
 const COPY_LABELS = ["Original for Recipient", "Duplicate", "Triplicate"] as const;
@@ -438,6 +453,7 @@ export function InvoicePdfDocument({
   logoSrc = null,
   wordmarkSrc = null,
   signatureSrc = null,
+  qrSrc = null,
   businessType = "general",
 }: {
   invoice: Invoice;
@@ -447,6 +463,8 @@ export function InvoicePdfDocument({
   logoSrc?: string | null;
   wordmarkSrc?: string | null;
   signatureSrc?: string | null;
+  /** Saudi Arabia: ZATCA QR code (PNG data URL) */
+  qrSrc?: string | null;
   businessType?: BusinessType;
 }) {
   const customer = invoice.customer;
@@ -468,21 +486,25 @@ export function InvoicePdfDocument({
     ) : (
       en
     );
-  const country = getCountryConfig(company.country);
+  // Printed under the rules the invoice was issued with (country, treatment, India split)
+  const taxCtx = contextForDocument(invoice, company, customer);
+  const country = taxCtx.country;
+  const taxName = country.taxName;
+  const showTax = !taxCtx.taxFree;
+  const gst = country.taxSystem === "gst";
   const currency = invoice.currency || company.currency || country.currency;
   const inr = (n: number) => pdfMoney(n, currency);
-  const breakdown = buildVatBreakdown(
-    items.map((it) => ({
-      taxableValue: Number(it.taxable_value),
-      vatRate: Number(it.vat_rate),
-      vatAmount: Number(it.vat_amount),
-      vatCategory: normalizeVatCategory(it.vat_category, Number(it.vat_rate)),
-      lineTotal: Number(it.line_total),
-    }))
-  );
-  const placeOfSupply = customer.state || company.state || country.name;
+  const summaryRows = taxSummaryRows(taxCtx, documentBreakdown(taxCtx, items), inr);
+  const placeOfSupply = taxCtx.placeOfSupply;
+  const note = treatmentNote(taxCtx);
+  const customerTaxIdLabel = getCountryConfig(customer.country || country.code).taxIdLabel;
+  // Column widths: tax columns fold into the description when there is no tax
+  const w = showTax
+    ? { desc: "27%", qty: "10%", rate: "14%", taxable: "12%", pct: "8%", vat: "11%", amount: "14%" }
+    : { desc: "46%", qty: "12%", rate: "18%", taxable: "0%", pct: "0%", vat: "0%", amount: "20%" };
   const addressLine = formatCompanyAddress(company);
-  const contactLine = formatCompanyContact({ ...company, taxIdLabel: country.taxIdLabel });
+  // The business's own number is labelled for its current country
+  const contactLine = formatCompanyContact({ ...company, taxIdLabel: getCountryConfig(company.country).taxIdLabel });
   const bankLine = formatCompanyBankLine(company);
 
   return (
@@ -516,8 +538,8 @@ export function InvoicePdfDocument({
           </Text>
           {bilingual && company.name_ar ? <Text style={styles.businessName}>{company.name_ar}</Text> : null}
           <Text style={styles.taxInvoiceLabel}>
-            {country.invoiceTitle}
-            {bilingual ? <Text style={styles.arabic}>{`  ·  ${AR.taxInvoice}`}</Text> : null}
+            {invoiceTitleFor(taxCtx, customer.tax_id)}
+            {bilingual && showTax ? <Text style={styles.arabic}>{`  ·  ${AR.taxInvoice}`}</Text> : null}
           </Text>
           {company.brand_name && company.brand_name !== company.company_name ? (
             <Text style={styles.companyLine}>{company.company_name}</Text>
@@ -536,9 +558,13 @@ export function InvoicePdfDocument({
             <Text style={styles.bodyText}>
               {customer.state}
               {customer.state ? " · " : ""}
-              {customer.tax_id ? `${country.taxIdLabel}: ${customer.tax_id}` : "Not VAT registered"}
+              {customer.tax_id
+                ? `${customerTaxIdLabel}: ${customer.tax_id}`
+                : showTax
+                  ? `Not ${taxName} registered`
+                  : ""}
             </Text>
-            {bilingual ? (
+            {bilingual && showTax ? (
               <Text style={[styles.bodyText, styles.arabic]}>
                 {customer.tax_id ? `${AR.trn}: ${customer.tax_id}` : AR.notRegistered}
               </Text>
@@ -568,29 +594,33 @@ export function InvoicePdfDocument({
         <View style={styles.table}>
           <View style={styles.th}>
             <Text style={[styles.cell, styles.thText, { width: "4%" }]}>#</Text>
-            <Text style={[styles.cell, styles.thText, { width: "27%" }]}>
+            <Text style={[styles.cell, styles.thText, { width: w.desc }]}>
               {t("Description", "الوصف")}
             </Text>
-            <Text style={[styles.cellRight, styles.thText, { width: "10%" }]}>
+            <Text style={[styles.cellRight, styles.thText, { width: w.qty }]}>
               {getBusinessTypeConfig(businessType).invoiceLineFields.jewelleryPricing
                 ? t("Pcs", "العدد")
                 : t("Qty", "الكمية")}
             </Text>
-            <Text style={[styles.cellRight, styles.thText, { width: "14%" }]}>
+            <Text style={[styles.cellRight, styles.thText, { width: w.rate }]}>
               {getBusinessTypeConfig(businessType).invoiceLineFields.jewelleryPricing
                 ? t("Rate/g", "السعر/غ")
                 : t("Rate", "السعر")}
             </Text>
-            <Text style={[styles.cellRight, styles.thText, { width: "12%" }]}>
-              {t("Taxable", "الخاضع للضريبة")}
-            </Text>
-            <Text style={[styles.cellRight, styles.thText, { width: "8%" }]}>
-              {t("VAT %", "النسبة")}
-            </Text>
-            <Text style={[styles.cellRight, styles.thText, { width: "11%" }]}>
-              {t("VAT", "الضريبة")}
-            </Text>
-            <Text style={[styles.cellRight, styles.thText, { width: "14%" }]}>
+            {showTax ? (
+              <>
+                <Text style={[styles.cellRight, styles.thText, { width: w.taxable }]}>
+                  {t("Taxable", "الخاضع للضريبة")}
+                </Text>
+                <Text style={[styles.cellRight, styles.thText, { width: w.pct }]}>
+                  {t(`${taxName} %`, "النسبة")}
+                </Text>
+                <Text style={[styles.cellRight, styles.thText, { width: w.vat }]}>
+                  {t(taxName, "الضريبة")}
+                </Text>
+              </>
+            ) : null}
+            <Text style={[styles.cellRight, styles.thText, { width: w.amount }]}>
               {t("Amount", "المبلغ")}
             </Text>
           </View>
@@ -601,31 +631,37 @@ export function InvoicePdfDocument({
             return (
               <View key={item.id} style={rowStyle}>
                 <Text style={[styles.cell, { width: "4%" }]}>{i + 1}</Text>
-                <View style={[styles.cell, { width: "27%" }]}>
+                <View style={[styles.cell, { width: w.desc }]}>
                   <Text>{line.title}</Text>
-                  {line.meta.map((m) => (
+                  {(gst && item.hsn_code ? [`HSN/SAC: ${item.hsn_code}`, ...line.meta] : line.meta).map((m) => (
                     <Text key={m} style={styles.lineMeta}>
                       {m}
                     </Text>
                   ))}
                 </View>
-                <Text style={[styles.cellRight, { width: "10%" }]}>
+                <Text style={[styles.cellRight, { width: w.qty }]}>
                   {formatQty(item.quantity, item.unit ?? item.product?.unit ?? (item.room_booking_id ? "night" : null))}
                 </Text>
-                <Text style={[styles.cellRight, { width: "14%" }]}>
+                <Text style={[styles.cellRight, { width: w.rate }]}>
                   {getBusinessTypeConfig(businessType).invoiceLineFields.jewelleryPricing &&
                   item.metal_rate_used != null
                     ? inr(item.metal_rate_used)
                     : inr(item.unit_price)}
                 </Text>
-                <Text style={[styles.cellRight, { width: "12%" }]}>
-                  {inr(item.taxable_value)}
-                </Text>
-                <Text style={[styles.cellRight, { width: "8%" }]}>{vatLabel(item)}</Text>
-                <Text style={[styles.cellRight, { width: "11%" }]}>
-                  {inr(item.vat_amount)}
-                </Text>
-                <Text style={[styles.cellRight, { width: "14%" }]}>
+                {showTax ? (
+                  <>
+                    <Text style={[styles.cellRight, { width: w.taxable }]}>
+                      {inr(item.taxable_value)}
+                    </Text>
+                    <Text style={[styles.cellRight, { width: w.pct }]}>
+                      {lineRateLabel(taxCtx, Number(item.vat_rate), item.vat_category)}
+                    </Text>
+                    <Text style={[styles.cellRight, { width: w.vat }]}>
+                      {inr(item.vat_amount)}
+                    </Text>
+                  </>
+                ) : null}
+                <Text style={[styles.cellRight, { width: w.amount }]}>
                   {inr(Number(item.taxable_value) + Number(item.vat_amount))}
                 </Text>
               </View>
@@ -635,26 +671,27 @@ export function InvoicePdfDocument({
 
         <View style={styles.totalsWrap}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("Total excl. VAT", "الإجمالي غير شامل الضريبة")}</Text>
+            <Text style={styles.totalLabel}>
+              {showTax ? t(`Total excl. ${taxName}`, "الإجمالي غير شامل الضريبة") : t("Subtotal", "المجموع")}
+            </Text>
             <Text style={styles.totalValue}>{inr(invoice.subtotal)}</Text>
           </View>
-          {breakdown.map((b) => (
-            <View key={`${b.vatCategory}-${b.vatRate}`} style={styles.totalRow}>
+          {summaryRows.map((row) => (
+            <View key={row.key} style={styles.totalRow}>
               <Text style={styles.totalLabel}>
-                {b.vatCategory === "standard"
-                  ? t(`VAT @ ${b.vatRate}% on ${inr(b.taxableValue)}`, AR.vat)
-                  : t(
-                      `${b.vatCategory === "zero" ? "Zero-rated" : "Exempt"} supplies ${inr(b.taxableValue)}`,
-                      b.vatCategory === "zero" ? AR.zeroRated : AR.exempt
-                    )}
+                {row.kind === "tax"
+                  ? t(row.label, AR.vat)
+                  : t(row.label, row.key.startsWith("exempt") ? AR.exempt : AR.zeroRated)}
               </Text>
-              <Text style={styles.totalValue}>{inr(b.vatAmount)}</Text>
+              <Text style={styles.totalValue}>{inr(row.amount)}</Text>
             </View>
           ))}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>{t("Total VAT", "إجمالي الضريبة")}</Text>
-            <Text style={styles.totalValue}>{inr(invoice.total_vat)}</Text>
-          </View>
+          {showTax ? (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>{t(`Total ${taxName}`, "إجمالي الضريبة")}</Text>
+              <Text style={styles.totalValue}>{inr(invoice.total_vat)}</Text>
+            </View>
+          ) : null}
           {Number(invoice.round_off) !== 0 ? (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>{t("Round Off", "التقريب")}</Text>
@@ -662,7 +699,9 @@ export function InvoicePdfDocument({
             </View>
           ) : null}
           <View style={styles.grand}>
-            <Text style={styles.grandLabel}>{t("Total incl. VAT", "الإجمالي شامل الضريبة")}</Text>
+            <Text style={styles.grandLabel}>
+              {showTax ? t(`Total incl. ${taxName}`, "الإجمالي شامل الضريبة") : t("Total", "الإجمالي")}
+            </Text>
             <Text style={styles.grandValue}>{inr(invoice.grand_total)}</Text>
           </View>
         </View>
@@ -671,6 +710,16 @@ export function InvoicePdfDocument({
           <Text style={styles.wordsLabel}>Amount in words: </Text>
           {amountInWords(invoice.grand_total, currency)}
         </Text>
+
+        {note ? <Text style={styles.noteBox}>{note}</Text> : null}
+
+        {qrSrc ? (
+          <View style={styles.qrRow}>
+            <Text style={styles.qrLabel}>{t("ZATCA e-invoice QR", "رمز الفاتورة الإلكترونية")}</Text>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image src={qrSrc} style={styles.qrImage} />
+          </View>
+        ) : null}
 
         {company.payment_link_url ? (
           <View style={styles.payBox}>
@@ -699,7 +748,7 @@ export function InvoicePdfDocument({
             <View style={styles.footerText}>
               {bankLine ? <Text>{bankLine}</Text> : null}
               <Text style={{ marginTop: 3 }}>
-                This is a computer-generated {country.invoiceTitle} from {company.company_name}.
+                This is a computer-generated {invoiceTitleFor(taxCtx, customer.tax_id)} from {company.company_name}.
               </Text>
             </View>
             {logoSrc ? (

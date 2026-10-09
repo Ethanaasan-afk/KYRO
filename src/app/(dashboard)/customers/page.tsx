@@ -9,6 +9,8 @@ import { SearchInput } from "@/components/ui/search-input";
 import { CustomerFormModal } from "@/components/customers/customer-form-modal";
 import { useBusinessType } from "@/hooks/use-business-type";
 import { useCustomerMutations, useCustomers } from "@/hooks/use-customers";
+import { useCompanySettings } from "@/hooks/use-company";
+import { getCountryConfig } from "@/lib/vat/countries";
 import { customerTypeLabel } from "@/lib/constants";
 import type { Customer } from "@/lib/types";
 import { Plus, Pencil, BookOpen } from "lucide-react";
@@ -27,6 +29,8 @@ export default function CustomersPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const { data: company } = useCompanySettings();
+  const orgCountry = getCountryConfig(company?.country);
 
   const filtered = useMemo(() => {
     return (customers ?? []).filter((c) => {
@@ -48,8 +52,8 @@ export default function CustomersPage() {
         title="Customers"
         description={
           hideCustomerType
-            ? "Guest / client master — add a TRN for VAT-registered clients"
-            : "Retail / wholesaler master - add a TRN for VAT-registered customers"
+            ? `Guest / client master - add a ${orgCountry.taxIdLabel} for registered clients`
+            : `Retail / wholesaler master - add a ${orgCountry.taxIdLabel} for registered customers`
         }
         accent="violet"
         actions={
@@ -67,7 +71,7 @@ export default function CustomersPage() {
       <SearchInput
         value={search}
         onChange={setSearch}
-        placeholder="Search name, phone, TRN…"
+        placeholder={`Search name, phone, ${orgCountry.taxIdLabel}…`}
         className="mb-4 sm:max-w-xs"
       />
 
@@ -96,8 +100,8 @@ export default function CustomersPage() {
                 <th>Name</th>
                 {!hideCustomerType && <th>Type</th>}
                 <th>Phone</th>
-                <th>Emirate</th>
-                <th>TRN</th>
+                <th>{orgCountry.regionLabel}</th>
+                <th>{orgCountry.taxIdLabel}</th>
                 <th></th>
               </tr>
             </thead>
@@ -120,7 +124,10 @@ export default function CustomersPage() {
                     </td>
                   )}
                   <td className="font-mono text-xs">{c.phone ?? "-"}</td>
-                  <td>{c.state}</td>
+                  <td>
+                    {c.state}
+                    {c.country && c.country !== orgCountry.code ? ` · ${getCountryConfig(c.country).name}` : ""}
+                  </td>
                   <td className="font-mono text-xs">{c.tax_id ?? "-"}</td>
                   <td>
                     <div className="flex gap-1">

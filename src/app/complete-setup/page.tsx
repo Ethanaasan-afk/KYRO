@@ -13,6 +13,7 @@ import {
 } from "@/lib/business-types";
 import { isDemoMode } from "@/lib/demo/mode";
 import { createClient } from "@/lib/supabase/client";
+import { countryOptions, getCountryConfig, guessCountryFromTimeZone, isCountryCode } from "@/lib/vat/countries";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
@@ -23,6 +24,7 @@ export default function CompleteSetupPage() {
   const [businessName, setBusinessName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [businessType, setBusinessType] = useState<BusinessType>(DEFAULT_BUSINESS_TYPE);
+  const [country, setCountry] = useState<string>("AE");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const demo = isDemoMode();
@@ -57,11 +59,13 @@ export default function CompleteSetupPage() {
         typeof meta.business_type === "string" && BUSINESS_TYPE_OPTIONS.some((o) => o.value === meta.business_type)
           ? (meta.business_type as BusinessType)
           : DEFAULT_BUSINESS_TYPE;
+      const metaCountry = isCountryCode(meta.country) ? String(meta.country).toUpperCase() : guessCountryFromTimeZone();
       if (name) setBusinessName(name);
       if (owner) setOwnerName(owner);
       setBusinessType(type);
+      setCountry(metaCountry);
       if (name.length >= 2 && owner) {
-        await submit({ business_name: name, owner_name: owner, business_type: type });
+        await submit({ business_name: name, owner_name: owner, business_type: type, country: metaCountry });
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,10 +73,15 @@ export default function CompleteSetupPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    await submit({ business_name: businessName, owner_name: ownerName, business_type: businessType });
+    await submit({ business_name: businessName, owner_name: ownerName, business_type: businessType, country });
   };
 
-  const submit = async (values: { business_name: string; owner_name: string; business_type: BusinessType }) => {
+  const submit = async (values: {
+    business_name: string;
+    owner_name: string;
+    business_type: BusinessType;
+    country: string;
+  }) => {
     setError("");
     setLoading(true);
     try {
@@ -187,6 +196,20 @@ export default function CompleteSetupPage() {
               label: `${o.emoji}  ${o.label}`,
             }))}
           />
+          <Select
+            id="country"
+            label="Country"
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            options={countryOptions()}
+          />
+          <p className="-mt-2 text-[11px] text-slate">
+            Sets your currency and tax: {getCountryConfig(country).currency},{" "}
+            {getCountryConfig(country).taxSystem === "none"
+              ? "no VAT"
+              : `${getCountryConfig(country).taxName} ${getCountryConfig(country).standardRate}% standard rate`}
+            . You can change it later in Settings.
+          </p>
           {error && <p className="text-xs text-rose">{error}</p>}
           <Button type="submit" className="w-full" loading={loading}>
             Create business &amp; continue

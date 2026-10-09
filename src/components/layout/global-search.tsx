@@ -41,7 +41,7 @@ const PAGES: { label: string; href: string; icon: LucideIcon; keywords: string }
   { label: "Inventory", href: "/inventory", icon: Warehouse, keywords: "stock in out adjust" },
   { label: "Customers", href: "/customers", icon: Users, keywords: "clients contacts trn" },
   { label: "Outstanding", href: "/outstanding", icon: Banknote, keywords: "credit due collect remind" },
-  { label: "Reports & VAT 201", href: "/reports", icon: BarChart3, keywords: "vat return fta excel" },
+  { label: "Reports & tax return", href: "/reports", icon: BarChart3, keywords: "vat gst return 201 gstr fta hmrc zatca excel" },
   { label: "Settings", href: "/settings", icon: Settings, keywords: "business trn email logo bank" },
 ];
 

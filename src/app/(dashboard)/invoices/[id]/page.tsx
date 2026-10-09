@@ -25,8 +25,16 @@ import type { EmailKind } from "@/lib/email/templates";
 import { formatQty, getUnit } from "@/lib/units";
 import { AnimatePresence, motion } from "motion/react";
 import { APP_NAME, BRAND_LOGO_ICON } from "@/lib/brand";
-import { buildVatBreakdown, normalizeVatCategory } from "@/lib/vat";
 import { getCountryConfig } from "@/lib/vat/countries";
+import {
+  contextForDocument,
+  documentBreakdown,
+  invoiceTitleFor,
+  lineRateLabel,
+  taxSummaryRows,
+  treatmentNote,
+} from "@/lib/vat/context";
+import { ZatcaQr } from "@/components/invoices/zatca-qr";
 import {
   invoiceShareMessage,
   paymentReminderMessage,
@@ -115,22 +123,15 @@ export default function InvoiceDetailPage() {
   }
   if (!invoice) return <EmptyState title="Invoice not found" description={`No row for id ${id}`} />;
 
-  const country = getCountryConfig(company?.country);
-  // Each invoice keeps the currency it was issued in (pre-VAT invoices are INR)
+  // Each invoice keeps the currency and tax rules it was issued under
   const money = (n: number) => formatCurrency(n, invoice.currency);
-  const breakdown = buildVatBreakdown(
-    (invoice.items ?? []).map((it) => ({
-      taxableValue: Number(it.taxable_value),
-      vatRate: Number(it.vat_rate),
-      vatAmount: Number(it.vat_amount),
-      vatCategory: normalizeVatCategory(it.vat_category, Number(it.vat_rate)),
-      lineTotal: Number(it.line_total),
-    }))
-  );
-  const vatLabel = (rate: number, category: unknown) => {
-    const cat = normalizeVatCategory(category, rate);
-    return cat === "standard" ? `${rate}%` : cat === "zero" ? "0%" : "Exempt";
-  };
+  const taxCtx = contextForDocument(invoice, company ?? {}, invoice.customer);
+  const taxName = taxCtx.country.taxName;
+  const customerTaxIdLabel = getCountryConfig(invoice.customer?.country || taxCtx.country.code).taxIdLabel;
+  const summaryRows = taxSummaryRows(taxCtx, documentBreakdown(taxCtx, invoice.items ?? []), money);
+  const vatLabel = (rate: number, category: unknown) => lineRateLabel(taxCtx, rate, category);
+  const note = treatmentNote(taxCtx);
+  const showTaxColumns = !taxCtx.taxFree;
   const amountPaid = invoice.amount_paid ?? 0;
   const amountDue = invoiceAmountDue(invoice.grand_total, amountPaid);
 
@@ -407,7 +408,7 @@ export default function InvoiceDetailPage() {
 
       {company ? (
         <div className="panel mb-6 p-4 sm:p-5">
-          <InvoiceCompanyHeader company={company} />
+          <InvoiceCompanyHeader company={company} documentTitle={invoiceTitleFor(taxCtx, invoice.customer?.tax_id)} />
         </div>
       ) : null}
 
@@ -421,20 +422,26 @@ export default function InvoiceDetailPage() {
             {invoice.customer?.tax_id ? (
               <span className="font-mono">
                 {invoice.customer?.state ? " · " : ""}
-                {country.taxIdLabel} {invoice.customer.tax_id}
+                {customerTaxIdLabel} {invoice.customer.tax_id}
               </span>
-            ) : (
-              `${invoice.customer?.state ? " · " : ""}Not VAT registered`
+            ) : taxCtx.taxFree ? null : (
+              `${invoice.customer?.state ? " · " : ""}Not ${taxName} registered`
             )}
           </p>
         </div>
         <div className="panel p-4 text-sm">
-          <p className="mb-1 text-xs text-slate">Pricing</p>
+          <p className="mb-1 text-xs text-slate">{invoiceTitleFor(taxCtx, invoice.customer?.tax_id)}</p>
           <p className="font-semibold text-ink">
-            {invoice.prices_include_vat ? "Prices include VAT" : "VAT added to prices"}
+            {taxCtx.taxFree
+              ? "No sales tax"
+              : invoice.prices_include_vat
+                ? `Prices include ${taxName}`
+                : `${taxName} added to prices`}
             {" · "}
             {invoice.currency}
           </p>
+          <p className="mt-1 text-slate">Place of supply: {taxCtx.placeOfSupply}</p>
+          {note ? <p className="mt-1 text-xs text-slate">{note}</p> : null}
           <p className="mt-2 text-slate">Created by {invoice.creator?.full_name ?? "-"}</p>
           {invoice.edited_at && (
             <p className="mt-1 text-xs text-slate">
@@ -463,8 +470,8 @@ export default function InvoiceDetailPage() {
                 <th>Making</th>
                 <th>Stone</th>
                 <th>Taxable</th>
-                <th>VAT %</th>
-                <th>VAT</th>
+                {showTaxColumns && <th>{taxName} %</th>}
+                {showTaxColumns && <th>{taxName}</th>}
               </tr>
             ) : (
               <tr>
@@ -472,9 +479,9 @@ export default function InvoiceDetailPage() {
                 <th>Product</th>
                 <th>Qty</th>
                 <th>Rate</th>
-                <th>Taxable</th>
-                <th>VAT %</th>
-                <th>VAT</th>
+                <th>{showTaxColumns ? "Taxable" : "Amount"}</th>
+                {showTaxColumns && <th>{taxName} %</th>}
+                {showTaxColumns && <th>{taxName}</th>}
                 <th>Total</th>
               </tr>
             )}
@@ -525,8 +532,8 @@ export default function InvoiceDetailPage() {
                       {item.stone_value != null ? money(item.stone_value) : "-"}
                     </td>
                     <td className="num">{money(item.taxable_value)}</td>
-                    <td className="num">{vatLabel(item.vat_rate, item.vat_category)}</td>
-                    <td className="num">{money(item.vat_amount)}</td>
+                    {showTaxColumns && <td className="num">{vatLabel(item.vat_rate, item.vat_category)}</td>}
+                    {showTaxColumns && <td className="num">{money(item.vat_amount)}</td>}
                   </tr>
                 );
               }
@@ -575,8 +582,8 @@ export default function InvoiceDetailPage() {
                   )}
                 </td>
                 <td className="num">{money(item.taxable_value)}</td>
-                <td className="num">{vatLabel(item.vat_rate, item.vat_category)}</td>
-                <td className="num">{money(item.vat_amount)}</td>
+                {showTaxColumns && <td className="num">{vatLabel(item.vat_rate, item.vat_category)}</td>}
+                {showTaxColumns && <td className="num">{money(item.vat_amount)}</td>}
                 <td className="num font-medium">{money(item.line_total)}</td>
               </tr>
             );
@@ -587,29 +594,27 @@ export default function InvoiceDetailPage() {
 
       <div className="mt-6 ml-auto w-full max-w-sm space-y-2.5 panel p-5">
         <div className="leader-row text-sm">
-          <span className="shrink-0 text-slate">Total excl. VAT</span>
+          <span className="shrink-0 text-slate">{taxCtx.taxFree ? "Amount" : `Total excl. ${taxName}`}</span>
           <span className="leader-line" aria-hidden />
           <span className="shrink-0 font-mono text-ink">{money(invoice.subtotal)}</span>
         </div>
-        {breakdown.map((b) => (
-          <div key={`${b.vatCategory}-${b.vatRate}`} className="leader-row text-sm">
-            <span className="inline-flex shrink-0 items-center gap-1 text-slate">
-              {b.vatCategory === "standard"
-                ? `VAT ${b.vatRate}%`
-                : b.vatCategory === "zero"
-                  ? `Zero-rated (${money(b.taxableValue)})`
-                  : `Exempt (${money(b.taxableValue)})`}
-              {b.vatCategory === "standard" ? <HelpTip helpKey="vat" /> : null}
+        {summaryRows.map((row) => (
+          <div key={row.key} className="leader-row text-sm">
+            <span className="inline-flex min-w-0 items-center gap-1 text-slate">
+              {row.label}
+              {row.helpVat ? <HelpTip helpKey="vat" /> : null}
             </span>
             <span className="leader-line" aria-hidden />
-            <span className="shrink-0 font-mono text-ink">{money(b.vatAmount)}</span>
+            <span className="shrink-0 font-mono text-ink">{money(row.amount)}</span>
           </div>
         ))}
-        <div className="leader-row text-sm">
-          <span className="shrink-0 text-slate">Total VAT</span>
-          <span className="leader-line" aria-hidden />
-          <span className="shrink-0 font-mono text-ink">{money(invoice.total_vat)}</span>
-        </div>
+        {!taxCtx.taxFree && (
+          <div className="leader-row text-sm">
+            <span className="shrink-0 text-slate">Total {taxName}</span>
+            <span className="leader-line" aria-hidden />
+            <span className="shrink-0 font-mono text-ink">{money(invoice.total_vat)}</span>
+          </div>
+        )}
         {Number(invoice.round_off) !== 0 && (
           <div className="leader-row text-sm">
             <span className="shrink-0 text-slate">Round off</span>
@@ -620,7 +625,7 @@ export default function InvoiceDetailPage() {
         <div className="mt-2 rounded-[10px] border border-sage bg-sage-soft px-3 py-3">
           <div className="flex items-end justify-between gap-3">
             <span className="font-display text-xs font-semibold uppercase tracking-[0.06em] text-sage">
-              Total incl. VAT
+              {taxCtx.taxFree ? "Total" : `Total incl. ${taxName}`}
             </span>
             <span className="font-display text-2xl font-semibold tracking-tight text-sage">
               <span className="font-mono">{money(invoice.grand_total)}</span>
@@ -640,6 +645,19 @@ export default function InvoiceDetailPage() {
           </div>
         )}
         <p className="mt-1 text-right text-xs text-slate">{amountInWords(invoice.grand_total, invoice.currency)}</p>
+        {taxCtx.country.zatcaQr && company?.tax_id ? (
+          <div className="mt-3 flex items-center justify-end gap-3">
+            <p className="text-right text-[11px] text-slate">ZATCA e-invoice QR</p>
+            <ZatcaQr
+              sellerName={company.company_name}
+              vatNumber={company.tax_id}
+              invoiceDate={invoice.invoice_date}
+              createdAt={invoice.created_at}
+              total={invoice.grand_total}
+              vatTotal={invoice.total_vat}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-10 flex justify-end">

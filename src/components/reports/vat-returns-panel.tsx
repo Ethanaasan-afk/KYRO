@@ -9,34 +9,33 @@ import { demoDb } from "@/lib/demo/store";
 import { downloadXlsx } from "@/lib/excel";
 import type { CreditNote, Invoice, Purchase } from "@/lib/types";
 import {
+  buildTaxReturn,
   buildVat201,
+  registerHeaders,
   registerRows,
+  taxReturnToSheetRows,
   vat201ToSheetRows,
   vatPeriodMonthBounds,
+  type TaxReturnSummary,
   type Vat201Summary,
   type VatReportDoc,
 } from "@/lib/vat-reports";
+import { getCountryConfig } from "@/lib/vat/countries";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { Download, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-const DISCLAIMER = `This summary follows the FTA VAT 201 layout. Check the figures with your accountant before filing on EmaraTax. ${APP_NAME} does not file returns for you.`;
+function disclaimer(returnName: string, portal: string) {
+  return portal
+    ? `This summary follows the ${returnName} layout. Check the figures with your accountant before filing on ${portal}. ${APP_NAME} does not file returns for you.`
+    : `A summary of your sales and purchases for the period. ${APP_NAME} does not file returns for you.`;
+}
 
-const REGISTER_HEADERS = [
-  "Document No.",
-  "Date",
-  "Party",
-  "TRN",
-  "Emirate",
-  "Standard rated",
-  "Zero rated",
-  "Exempt",
-  "VAT",
-  "Total",
-];
-
-type Party = { name?: string; tax_id?: string | null; state?: string | null } | null | undefined;
+type Party =
+  | { name?: string; tax_id?: string | null; state?: string | null; country?: string | null }
+  | null
+  | undefined;
 
 function toDoc(
   d: {
@@ -45,6 +44,8 @@ function toDoc(
     total_vat: number;
     grand_total: number;
     currency?: string | null;
+    tax_treatment?: string | null;
+    tax_split?: string | null;
     items?: VatReportDoc["items"];
   },
   number: string,
@@ -59,7 +60,11 @@ function toDoc(
     subtotal: d.subtotal,
     total_vat: d.total_vat,
     grand_total: d.grand_total,
-    party: party ? { name: party.name, tax_id: party.tax_id, state: party.state } : null,
+    tax_treatment: d.tax_treatment ?? null,
+    tax_split: d.tax_split ?? null,
+    party: party
+      ? { name: party.name, tax_id: party.tax_id, state: party.state, country: party.country ?? null }
+      : null,
     items: d.items,
   };
 }
@@ -77,9 +82,15 @@ export function VatReturnsPanel() {
   const [loading, setLoading] = useState<"preview" | "export" | null>(null);
   const [message, setMessage] = useState("");
   const [summary, setSummary] = useState<Vat201Summary | null>(null);
+  const [generic, setGeneric] = useState<TaxReturnSummary | null>(null);
   const { data: org } = useOrganization();
   const currency = org?.currency || "AED";
+  const country = getCountryConfig(org?.country);
+  const isUae = country.code === "AE";
   const businessEmirate = org?.state?.trim() || "Dubai";
+  const labels = { taxId: country.taxIdLabel, region: country.regionLabel, tax: country.taxName };
+  const headers = registerHeaders(labels);
+  const fileStem = country.returnName.replace(/[^A-Za-z0-9-]+/g, "-").replace(/-+$/, "");
 
   const fetchDocs = useCallback(async (): Promise<PeriodDocs> => {
     const inRange = (date: string) => date >= from && date <= to;
@@ -105,18 +116,18 @@ export function VatReturnsPanel() {
     const [inv, cn, po] = await Promise.all([
       supabase
         .from("invoices")
-        .select("*, customer:customers(name, tax_id, state), items:invoice_items(*)")
+        .select("*, customer:customers(name, tax_id, state, country), items:invoice_items(*)")
         .gte("invoice_date", from)
         .lte("invoice_date", to)
         .order("invoice_date"),
       supabase
         .from("credit_notes")
-        .select("*, customer:customers(name, tax_id, state), items:credit_note_items(*)")
+        .select("*, customer:customers(name, tax_id, state, country), items:credit_note_items(*)")
         .gte("credit_date", from)
         .lte("credit_date", to),
       supabase
         .from("purchases")
-        .select("*, supplier:suppliers(name, tax_id, state), items:purchase_items(*)")
+        .select("*, supplier:suppliers(name, tax_id, state, country), items:purchase_items(*)")
         .gte("purchase_date", from)
         .lte("purchase_date", to),
     ]);
@@ -139,19 +150,26 @@ export function VatReturnsPanel() {
     (docs: PeriodDocs) => buildVat201({ ...docs, currency, businessEmirate }),
     [currency, businessEmirate]
   );
+  const buildGeneric = useCallback(
+    (docs: PeriodDocs) => buildTaxReturn({ ...docs, currency, country: country.code }),
+    [currency, country.code]
+  );
 
   const loadPreview = useCallback(async () => {
     setLoading("preview");
     setMessage("");
     try {
-      setSummary(build(await fetchDocs()));
+      const docs = await fetchDocs();
+      if (isUae) setSummary(build(docs));
+      else setGeneric(buildGeneric(docs));
     } catch (e) {
       setMessage((e as Error).message);
       setSummary(null);
+      setGeneric(null);
     } finally {
       setLoading(null);
     }
-  }, [fetchDocs, build]);
+  }, [fetchDocs, build, buildGeneric, isUae]);
 
   useEffect(() => {
     void loadPreview();
@@ -162,19 +180,23 @@ export function VatReturnsPanel() {
     setMessage("");
     try {
       const docs = await fetchDocs();
-      const built = build(docs);
-      setSummary(built);
-      downloadXlsx(`VAT-201_${from}_to_${to}.xlsx`, [
-        { name: "VAT 201", rows: vat201ToSheetRows(built) },
-        { name: "Sales", rows: registerRows(docs.sales, currency), headers: REGISTER_HEADERS },
-        {
-          name: "Credit notes",
-          rows: registerRows(docs.creditNotes, currency),
-          headers: REGISTER_HEADERS,
-        },
-        { name: "Purchases", rows: registerRows(docs.purchases, currency), headers: REGISTER_HEADERS },
+      let summaryRows: Record<string, string | number>[];
+      if (isUae) {
+        const built = build(docs);
+        setSummary(built);
+        summaryRows = vat201ToSheetRows(built);
+      } else {
+        const built = buildGeneric(docs);
+        setGeneric(built);
+        summaryRows = taxReturnToSheetRows(built);
+      }
+      downloadXlsx(`${fileStem}_${from}_to_${to}.xlsx`, [
+        { name: country.returnName.slice(0, 31), rows: summaryRows },
+        { name: "Sales", rows: registerRows(docs.sales, currency, labels), headers },
+        { name: "Credit notes", rows: registerRows(docs.creditNotes, currency, labels), headers },
+        { name: "Purchases", rows: registerRows(docs.purchases, currency, labels), headers },
       ]);
-      setMessage("VAT 201 workbook downloaded (summary, sales, credit notes, purchases).");
+      setMessage(`${country.returnName} workbook downloaded (summary, sales, credit notes, purchases).`);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -212,12 +234,19 @@ export function VatReturnsPanel() {
         </Button>
         <Button type="button" onClick={() => void exportReturn()} loading={loading === "export"}>
           <Download className="h-4 w-4" />
-          Export VAT 201 (Excel)
+          Export {country.returnName} (Excel)
         </Button>
       </div>
 
-      <p className="max-w-2xl text-xs leading-relaxed text-slate">{DISCLAIMER}</p>
+      <p className="max-w-2xl text-xs leading-relaxed text-slate">
+        {disclaimer(country.returnName, country.returnPortal)}
+      </p>
 
+      {!isUae && (
+        <GenericReturn summary={generic} loading={loading === "preview"} from={from} to={to} money={(n) => formatCurrency(n, currency)} />
+      )}
+
+      {isUae && (
       <div className="panel panel-accent-sun wash-sun overflow-hidden">
         <div className="border-b border-border/70 px-5 py-4">
           <h2 className="font-display text-sm font-semibold text-ink">VAT 201 · return preview</h2>
@@ -322,8 +351,92 @@ export function VatReturnsPanel() {
           </div>
         )}
       </div>
+      )}
 
       {message && <p className="text-sm text-muted">{message}</p>}
+    </div>
+  );
+}
+
+/** Return preview for every country except the UAE (whose VAT 201 has its own layout). */
+function GenericReturn({
+  summary,
+  loading,
+  from,
+  to,
+  money,
+}: {
+  summary: TaxReturnSummary | null;
+  loading: boolean;
+  from: string;
+  to: string;
+  money: (n: number) => string;
+}) {
+  const gst = !!summary?.gst;
+  const cell = (n: number | null | undefined) => (n === null || n === undefined ? "-" : money(n));
+  return (
+    <div className="panel panel-accent-sun wash-sun overflow-hidden">
+      <div className="border-b border-border/70 px-5 py-4">
+        <h2 className="font-display text-sm font-semibold text-ink">
+          {summary?.title ?? "Tax return"} · preview
+        </h2>
+        <p className="mt-1 text-xs text-slate">
+          {from} → {to}
+          {summary
+            ? ` · ${summary.currency} · ${summary.counts.sales} sale(s), ${summary.counts.creditNotes} credit note(s), ${summary.counts.purchases} purchase(s)`
+            : ""}
+        </p>
+        {summary && summary.skippedOtherCurrency > 0 && (
+          <p className="mt-1 text-xs text-amber">
+            {summary.skippedOtherCurrency} document(s) issued in another currency are not included.
+          </p>
+        )}
+      </div>
+      {!summary ? (
+        <p className="px-5 py-10 text-center text-sm text-slate">{loading ? "Loading…" : "No data for this period."}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-border bg-cloud/80 text-xs uppercase tracking-wide text-slate">
+                <th className="px-5 py-3 font-medium">Box</th>
+                <th className="px-5 py-3 font-medium">Description</th>
+                <th className="px-5 py-3 text-right font-medium">Amount</th>
+                {gst ? (
+                  <>
+                    <th className="px-5 py-3 text-right font-medium">IGST</th>
+                    <th className="px-5 py-3 text-right font-medium">CGST</th>
+                    <th className="px-5 py-3 text-right font-medium">SGST</th>
+                  </>
+                ) : summary.netPayable !== null ? (
+                  <th className="px-5 py-3 text-right font-medium">{summary.country.taxName}</th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {summary.rows.map((r) => (
+                <tr
+                  key={`${r.box}-${r.description}`}
+                  className={`border-b border-border/60 text-ink ${r.total ? "bg-cloud/60 font-semibold" : ""}`}
+                >
+                  <td className="px-5 py-2.5 font-medium">{r.box}</td>
+                  <td className="px-5 py-2.5">{r.description}</td>
+                  <td className="px-5 py-2.5 text-right tabular-nums">{cell(r.amount)}</td>
+                  {gst ? (
+                    <>
+                      <td className="px-5 py-2.5 text-right tabular-nums">{cell(r.gst ? Math.abs(r.gst.igst) : r.tax === 0 ? 0 : null)}</td>
+                      <td className="px-5 py-2.5 text-right tabular-nums">{cell(r.gst ? Math.abs(r.gst.cgst) : r.tax === 0 ? 0 : null)}</td>
+                      <td className="px-5 py-2.5 text-right tabular-nums">{cell(r.gst ? Math.abs(r.gst.sgst) : r.tax === 0 ? 0 : null)}</td>
+                    </>
+                  ) : summary.netPayable !== null ? (
+                    <td className="px-5 py-2.5 text-right tabular-nums">{cell(r.tax)}</td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

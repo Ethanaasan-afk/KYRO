@@ -4,6 +4,7 @@ import { useAuth } from "@/components/auth-provider";
 import { isDemoMode } from "@/lib/demo/mode";
 import { demoDb } from "@/lib/demo/store";
 import { calcInvoiceTotals, normalizeVatCategory } from "@/lib/vat";
+import { calcOptionsForDocument, copiedTaxFields } from "@/lib/vat/context";
 import { requireOrganizationId } from "@/lib/org";
 import { createClient } from "@/lib/supabase/client";
 import type { CreditNote, Invoice } from "@/lib/types";
@@ -127,9 +128,7 @@ export function useCreditNoteMutations() {
         };
       });
       // Mirror the original invoice: same rates, same inclusive/exclusive pricing
-      const totals = calcInvoiceTotals(lineInputs, {
-        pricesIncludeVat: !!inv.prices_include_vat,
-      });
+      const totals = calcInvoiceTotals(lineInputs, calcOptionsForDocument(inv, !!inv.prices_include_vat));
 
       const { data: cnNumber, error: nErr } = await supabase.rpc(
         "next_credit_note_number",
@@ -148,6 +147,7 @@ export function useCreditNoteMutations() {
           subtotal: totals.subtotal,
           total_vat: totals.totalVat,
           currency: inv.currency,
+          ...copiedTaxFields(inv),
           round_off: totals.roundOff,
           grand_total: totals.grandTotal,
           reason: payload.reason || null,

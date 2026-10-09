@@ -5,8 +5,10 @@ import { useInvoice } from "@/hooks/use-invoices";
 import { AR } from "@/lib/invoice-arabic";
 import { invoiceAmountDue } from "@/lib/invoice-payment";
 import { formatQty } from "@/lib/units";
-import { buildVatBreakdown, normalizeVatCategory } from "@/lib/vat";
 import { getCountryConfig } from "@/lib/vat/countries";
+import { contextForDocument, documentBreakdown, invoiceTitleFor, taxSummaryRows, treatmentNote } from "@/lib/vat/context";
+import { currencyDecimals } from "@/lib/utils";
+import { ZatcaQr } from "@/components/invoices/zatca-qr";
 import { ArrowLeft, Printer } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -14,8 +16,13 @@ import { Suspense, useEffect, useRef, useState } from "react";
 
 type Width = "80" | "58";
 
+function amount(n: number, currency: string) {
+  const digits = currencyDecimals(currency);
+  return Number(n).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
 function money(n: number, currency: string) {
-  return `${currency} ${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${currency} ${amount(n, currency)}`;
 }
 
 /** Point-of-sale receipt for 80 mm / 58 mm thermal printers. */
@@ -50,19 +57,15 @@ function ReceiptView() {
     );
   }
 
-  const country = getCountryConfig(company.country);
+  const taxCtx = contextForDocument(invoice, company, invoice.customer);
+  const country = taxCtx.country;
   const currency = invoice.currency || company.currency || country.currency;
   const bilingual = company.invoice_language === "en_ar";
   const items = invoice.items ?? [];
-  const breakdown = buildVatBreakdown(
-    items.map((it) => ({
-      taxableValue: Number(it.taxable_value),
-      vatRate: Number(it.vat_rate),
-      vatAmount: Number(it.vat_amount),
-      vatCategory: normalizeVatCategory(it.vat_category, Number(it.vat_rate)),
-      lineTotal: Number(it.line_total),
-    }))
+  const taxRows = taxSummaryRows(taxCtx, documentBreakdown(taxCtx, items), (n) => money(n, currency)).filter(
+    (r) => r.kind === "tax"
   );
+  const note = treatmentNote(taxCtx);
   const due = invoice.status === "paid" ? 0 : invoiceAmountDue(Number(invoice.grand_total), Number(invoice.amount_paid ?? 0));
   const paid = Math.max(0, Number(invoice.grand_total) - due);
   const created = new Date(invoice.created_at || invoice.invoice_date);
@@ -125,11 +128,11 @@ function ReceiptView() {
           {company.phone && <p>Tel {company.phone}</p>}
           {company.tax_id && (
             <p>
-              {country.taxIdLabel} {company.tax_id}
+              {getCountryConfig(company.country).taxIdLabel} {company.tax_id}
             </p>
           )}
           <p className="mt-2 border-y border-dashed border-black py-1 text-[12px] font-bold uppercase">
-            {line(country.invoiceTitle, AR.taxInvoice)}
+            {line(invoiceTitleFor(taxCtx, invoice.customer?.tax_id), AR.taxInvoice)}
           </p>
         </div>
 
@@ -152,7 +155,7 @@ function ReceiptView() {
           )}
           {invoice.customer?.tax_id && (
             <p className="flex justify-between gap-2">
-              <span>Cust. {country.taxIdLabel}</span>
+              <span>Cust. {getCountryConfig(invoice.customer.country || country.code).taxIdLabel}</span>
               <span>{invoice.customer.tax_id}</span>
             </p>
           )}
@@ -168,9 +171,9 @@ function ReceiptView() {
                 <p className="font-bold">{it.product?.name ?? (it.room_booking_id ? "Room stay" : "Item")}</p>
                 <p className="flex justify-between gap-2">
                   <span>
-                    {formatQty(it.quantity, unit)} × {Number(it.unit_price).toFixed(2)}
+                    {formatQty(it.quantity, unit)} × {amount(Number(it.unit_price), currency)}
                   </span>
-                  <span>{lineTotal.toFixed(2)}</span>
+                  <span>{amount(lineTotal, currency)}</span>
                 </p>
               </li>
             );
@@ -183,14 +186,12 @@ function ReceiptView() {
             <span>{line("Subtotal", "المجموع")}</span>
             <span>{money(invoice.subtotal, currency)}</span>
           </p>
-          {breakdown
-            .filter((b) => b.vatCategory === "standard")
-            .map((b) => (
-              <p key={b.vatRate} className="flex justify-between">
-                <span>{line(`VAT ${b.vatRate}%`, AR.vat)}</span>
-                <span>{money(b.vatAmount, currency)}</span>
-              </p>
-            ))}
+          {taxRows.map((r) => (
+            <p key={r.key} className="flex justify-between gap-2">
+              <span>{line(r.label.replace(/ on .*$/, ""), AR.vat)}</span>
+              <span>{money(r.amount, currency)}</span>
+            </p>
+          ))}
           {Number(invoice.round_off) !== 0 && (
             <p className="flex justify-between">
               <span>Round off</span>
@@ -207,13 +208,29 @@ function ReceiptView() {
               <span>{money(paid, currency)}</span>
             </p>
           )}
-          {due > 0.004 && (
+          {due > 0.0004 && (
             <p className="flex justify-between font-bold">
               <span>Balance due</span>
               <span>{money(due, currency)}</span>
             </p>
           )}
         </div>
+
+        {note && <p className="mt-2 text-[10px]">{note}</p>}
+
+        {country.zatcaQr && company.tax_id && (
+          <div className="mt-3 flex justify-center">
+            <ZatcaQr
+              sellerName={company.company_name}
+              vatNumber={company.tax_id}
+              invoiceDate={invoice.invoice_date}
+              createdAt={invoice.created_at}
+              total={Number(invoice.grand_total)}
+              vatTotal={Number(invoice.total_vat)}
+              size={120}
+            />
+          </div>
+        )}
 
         <div className="mt-3 text-center">
           <p>Thank you for your business!</p>

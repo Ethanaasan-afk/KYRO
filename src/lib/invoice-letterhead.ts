@@ -1,3 +1,5 @@
+import { getCountryConfig } from "@/lib/vat/countries";
+
 /**
  * Join optional letterhead fields without dangling commas / dashes / labels.
  */
@@ -62,14 +64,19 @@ export function formatCompanyBankLine(parts: {
   bank_account?: string | null;
   bank_swift?: string | null;
   bank_branch?: string | null;
+  /** Country of the business: IBAN / SWIFT in the Gulf and Europe, A/c / IFSC in India */
+  country?: string | null;
 }): string {
+  const cfg = getCountryConfig(parts.country);
+  const accountLabel = cfg.bankAccountLabel === "IBAN" ? "IBAN" : "A/c";
+  const codeLabel = cfg.bankCodeLabel === "SWIFT / BIC" ? "SWIFT" : cfg.bankCodeLabel.replace(" / ", "/");
   const chunks: string[] = [];
   const name = presentText(parts.bank_name);
   if (name) chunks.push(name);
   const account = presentText(parts.bank_account);
-  if (account) chunks.push(`IBAN ${account}`);
+  if (account) chunks.push(`${accountLabel} ${account}`);
   const swift = presentText(parts.bank_swift);
-  if (swift) chunks.push(`SWIFT ${swift}`);
+  if (swift) chunks.push(`${codeLabel} ${swift}`);
   const branch = presentText(parts.bank_branch);
   if (branch) chunks.push(branch);
   return chunks.length ? `Bank: ${chunks.join(" · ")}` : "";

@@ -9,7 +9,7 @@ import { useBusinessType } from "@/hooks/use-business-type";
 import { useCustomerMutations } from "@/hooks/use-customers";
 import { useToast } from "@/components/ui/toast";
 import { useCompanySettings } from "@/hooks/use-company";
-import { DEFAULT_COUNTRY, getCountryConfig } from "@/lib/vat/countries";
+import { DEFAULT_COUNTRY, countryOptions, getCountryConfig } from "@/lib/vat/countries";
 import type { Customer } from "@/lib/types";
 import { customerSchema } from "@/lib/validations";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,13 +36,14 @@ export function CustomerFormModal({
   const { upsert } = useCustomerMutations();
   const { data: company } = useCompanySettings();
   const orgCountry = company?.country ?? DEFAULT_COUNTRY;
-  const country = getCountryConfig(orgCountry);
+  const sellerCountry = getCountryConfig(orgCountry);
   const { toast } = useToast();
   const {
     register,
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(customerSchema),
@@ -85,6 +86,10 @@ export function CustomerFormModal({
     }
   }, [customer, open, reset, hideCustomerType, orgCountry]);
 
+  // Region list, tax number format and phone prefix follow the customer's own country
+  const country = getCountryConfig(watch("country") || orgCountry);
+  const foreign = country.code !== sellerCountry.code;
+
   const onSubmit = async (values: FormValues) => {
     const result = await upsert.mutateAsync({
       ...(customer?.id ? { id: customer.id } : {}),
@@ -125,6 +130,16 @@ export function CustomerFormModal({
             onChange={(e) => setValue("customer_type", e.target.value as "b2b" | "b2c")}
           />
         )}
+        <Select
+          label="Country"
+          options={countryOptions()}
+          {...register("country", {
+            onChange: (e) => {
+              const next = getCountryConfig(e.target.value);
+              if (next.regions.length) setValue("state", "");
+            },
+          })}
+        />
         {country.regions.length ? (
           <Select
             label={country.regionLabel}
@@ -139,13 +154,26 @@ export function CustomerFormModal({
         <Input label="Phone" placeholder={`${country.dialCode} …`} {...register("phone")} />
         <Input label="Email" type="email" {...register("email")} />
         <Input
-          label={`${country.taxIdLabel} (if VAT registered)`}
+          label={
+            country.taxSystem === "none"
+              ? `${country.taxIdLabel} (optional)`
+              : `${country.taxIdLabel} (if ${country.taxName} registered)`
+          }
           helpKey="tax_id"
           placeholder={country.taxIdPlaceholder}
           className="sm:col-span-2"
           error={errors.tax_id?.message}
           {...register("tax_id")}
         />
+        {foreign && sellerCountry.taxSystem !== "none" ? (
+          <p className="sm:col-span-2 text-xs text-slate">
+            Customer abroad: invoices start as{" "}
+            {sellerCountry.vatZone && country.vatZone === sellerCountry.vatZone
+              ? "reverse charge when you add their VAT number (no VAT charged), otherwise a local sale"
+              : "an export (zero-rated)"}
+            . You can change it on each invoice.
+          </p>
+        ) : null}
         <Textarea
           label="Billing address"
           className="sm:col-span-2"

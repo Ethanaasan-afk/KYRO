@@ -246,7 +246,7 @@ export default function DashboardPage() {
     { id: "account", label: "Create your account", done: true, href: "/settings" },
     {
       id: "business",
-      label: "Add your TRN & address",
+      label: "Add your tax number & address",
       done: !!(d.org?.tax_id && d.org?.address),
       href: "/settings",
     },

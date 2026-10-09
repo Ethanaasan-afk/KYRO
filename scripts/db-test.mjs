@@ -256,6 +256,34 @@ check(!r.ok, "only weekly, monthly, quarterly or yearly schedules are accepted")
 const stock = await one(`select current_stock from public.product_stock where product_id=$1`, [prodA.id]);
 check(Number(stock.current_stock) > 0, `stock view still works (${stock.current_stock})`);
 
+// ---------- every country's tax (042) ----------
+const narrow = await q(`select table_name || '.' || column_name as c from information_schema.columns
+  where table_schema='public' and data_type='numeric' and numeric_scale=2
+    and column_name ~ '(price|total|amount|subtotal|value|cost|paid|charge|balance)$'`);
+check(narrow.length === 0, `money columns hold 3 decimals for dinars and rials (${narrow.map((x) => x.c).join(",") || "ok"})`);
+const rateCol = await one(`select numeric_scale from information_schema.columns where table_schema='public' and table_name='products' and column_name='vat_rate'`);
+check(Number(rateCol.numeric_scale) === 2, "tax rates keep their 2-decimal column");
+await db.query(`update public.organizations set country='BH', currency='BHD' where id=$1`, [orgA.id]);
+const bhdPayload = JSON.parse(invoicePayload(1, "2026-03-03"));
+Object.assign(bhdPayload, { subtotal: 1.234, total_vat: 0.123, grand_total: 1.357 });
+Object.assign(bhdPayload.items[0], { unit_price: 1.234, taxable_value: 1.234, vat_rate: 10, vat_amount: 0.123, line_total: 1.357 });
+r = await asUser(ids.staffA, `select public.create_invoice_atomic($1::jsonb) as r`, [JSON.stringify(bhdPayload)]);
+const bhdId = r.ok ? r.rows[0].r.id : null;
+const bhd = bhdId ? await one(`select grand_total, currency from public.invoices where id=$1`, [bhdId]) : null;
+check(!!bhd && Number(bhd.grand_total) === 1.357 && bhd.currency === "BHD", `a Bahrain invoice keeps 3 decimals (${bhd ? `${bhd.grand_total} ${bhd.currency}` : r.msg})`);
+r = await asUser(ids.staffA, `update public.invoices set tax_country='BH', tax_treatment='export', tax_split='single', place_of_supply='Saudi Arabia' where id=$1 returning id`, [bhdId]);
+check(r.ok && r.rows.length === 1, `staff can stamp the tax rules on a new invoice (${r.msg ?? "ok"})`);
+r = await asUser(ids.staffA, `update public.invoices set tax_treatment='made_up' where id=$1`, [bhdId]);
+check(!r.ok, "only local sale, reverse charge and export are accepted");
+r = await asUser(ids.staffA, `select public.record_payment($1::jsonb) as p`, [JSON.stringify({ customer_id: custA.id, invoice_id: bhdId, amount: 1.357 })]);
+const paid = bhdId ? await one(`select status, amount_paid from public.invoices where id=$1`, [bhdId]) : null;
+check(r.ok && paid?.status === "paid" && Number(paid.amount_paid) === 1.357, `paying 1.357 BHD marks the invoice paid (${paid ? `${paid.status} ${paid.amount_paid}` : r.msg})`);
+r = await asUser(ids.staffA, `select public.kyro_schema_version() as v`);
+check(r.ok && r.rows[0].v === 42, "the app can tell migration 042 ran");
+r = await asUser(ids.adminB, `select id from public.invoices where id=$1`, [bhdId]);
+check(r.ok && r.rows.length === 0, "another business still cannot see the invoice");
+await db.query(`update public.organizations set country='AE', currency='AED' where id=$1`, [orgA.id]);
+
 // ---------- re-running the latest migrations is safe ----------
 for (const f of numbered.slice(-3)) {
   try {

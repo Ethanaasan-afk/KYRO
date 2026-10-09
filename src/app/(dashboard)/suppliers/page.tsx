@@ -10,7 +10,8 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState, LoadingBlock, PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
-import { UAE_EMIRATES } from "@/lib/vat/countries";
+import { countryOptions, getCountryConfig, isValidTaxId } from "@/lib/vat/countries";
+import { useCompanySettings } from "@/hooks/use-company";
 import { useOrgAccess } from "@/hooks/use-org-access";
 import { useSupplierMutations, useSuppliers } from "@/hooks/use-suppliers";
 import type { Supplier } from "@/lib/types";
@@ -25,6 +26,7 @@ const empty = {
   tax_id: "",
   address: "",
   state: "",
+  country: "",
   notes: "",
   is_active: true,
 };
@@ -40,6 +42,9 @@ export default function SuppliersPage() {
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [form, setForm] = useState(empty);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const { data: company } = useCompanySettings();
+  const orgCountry = getCountryConfig(company?.country);
+  const formCountry = getCountryConfig(form.country || orgCountry.code);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -63,7 +68,7 @@ export default function SuppliersPage() {
         <PlanUpgradeBanner
           requiredPlan="Pro"
           title="Suppliers are on Pro and Business"
-          description="Manage supplier TRNs for purchase bills. Upgrade to unlock purchases, suppliers, and credit notes."
+          description="Manage supplier tax numbers for purchase bills. Upgrade to unlock purchases, suppliers, and credit notes."
         />
       </div>
     );
@@ -71,7 +76,7 @@ export default function SuppliersPage() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm(empty);
+    setForm({ ...empty, country: orgCountry.code });
     setOpen(true);
   };
 
@@ -84,6 +89,7 @@ export default function SuppliersPage() {
       tax_id: s.tax_id ?? "",
       address: s.address ?? "",
       state: s.state,
+      country: s.country || orgCountry.code,
       notes: s.notes ?? "",
       is_active: s.is_active,
     });
@@ -95,6 +101,10 @@ export default function SuppliersPage() {
       toast("Name is required", "error");
       return;
     }
+    if (!isValidTaxId(form.tax_id, formCountry.code)) {
+      toast(`Enter a valid ${formCountry.taxIdLabel} (${formCountry.taxIdHint})`, "error");
+      return;
+    }
     try {
       await upsert.mutateAsync({
         id: editing?.id,
@@ -104,6 +114,7 @@ export default function SuppliersPage() {
         tax_id: form.tax_id || null,
         address: form.address || null,
         state: form.state,
+        country: formCountry.code,
         notes: form.notes || null,
         is_active: form.is_active,
       });
@@ -131,7 +142,7 @@ export default function SuppliersPage() {
       <SearchInput
         value={search}
         onChange={setSearch}
-        placeholder="Search name, phone, TRN…"
+        placeholder={`Search name, phone, ${orgCountry.taxIdLabel}…`}
         className="mb-4 sm:max-w-xs"
       />
 
@@ -154,8 +165,8 @@ export default function SuppliersPage() {
               <tr>
                 <th>Name</th>
                 <th>Phone</th>
-                <th>Emirate</th>
-                <th>TRN</th>
+                <th>{orgCountry.regionLabel}</th>
+                <th>{orgCountry.taxIdLabel}</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -165,7 +176,10 @@ export default function SuppliersPage() {
                 <tr key={s.id}>
                   <td className="font-medium">{s.name}</td>
                   <td className="font-mono text-xs">{s.phone ?? "-"}</td>
-                  <td>{s.state}</td>
+                  <td>
+                    {s.state}
+                    {s.country && s.country !== orgCountry.code ? ` · ${getCountryConfig(s.country).name}` : ""}
+                  </td>
                   <td className="font-mono text-xs">{s.tax_id ?? "-"}</td>
                   <td>
                     <Badge variant={s.is_active ? "success" : "default"}>
@@ -209,19 +223,33 @@ export default function SuppliersPage() {
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
+            <Select
+              label="Country"
+              options={countryOptions()}
+              value={formCountry.code}
+              onChange={(e) => setForm((f) => ({ ...f, country: e.target.value, state: "" }))}
+            />
             <Input
-              label="TRN"
-              placeholder="15-digit TRN"
+              label={formCountry.taxIdLabel}
+              placeholder={formCountry.taxIdPlaceholder}
               value={form.tax_id}
               onChange={(e) => setForm((f) => ({ ...f, tax_id: e.target.value }))}
             />
-            <Select
-              label="Emirate"
-              placeholder="Select emirate"
-              options={UAE_EMIRATES.map((e) => ({ value: e, label: e }))}
-              value={form.state}
-              onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-            />
+            {formCountry.regions.length ? (
+              <Select
+                label={formCountry.regionLabel}
+                placeholder={`Select ${formCountry.regionLabel.toLowerCase()}`}
+                options={formCountry.regions.map((r) => ({ value: r, label: r }))}
+                value={form.state}
+                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+              />
+            ) : (
+              <Input
+                label={formCountry.regionLabel}
+                value={form.state}
+                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+              />
+            )}
           </div>
           <Input
             label="Address"

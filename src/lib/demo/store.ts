@@ -1,4 +1,30 @@
-import { calcInvoiceTotals, normalizeVatCategory } from "@/lib/vat";
+import { calcInvoiceTotals, normalizeVatCategory, type CalcOptions } from "@/lib/vat";
+import { calcOptionsFor, calcOptionsForDocument, copiedTaxFields, resolveTaxContext } from "@/lib/vat/context";
+
+/** Tax options for a demo invoice (mirrors the real create / update path). */
+function demoCalcOptions(payload: Pick<CreateInvoicePayload, "prices_include_vat" | "tax">): CalcOptions {
+  const pricesIncludeVat = !!payload.prices_include_vat;
+  const tax = payload.tax;
+  if (!tax) return { pricesIncludeVat };
+  return {
+    pricesIncludeVat,
+    decimals: tax.decimals,
+    split: tax.tax_split,
+    treatment: tax.tax_treatment,
+    taxFree: tax.tax_free,
+  };
+}
+
+function demoTaxFields(payload: Pick<CreateInvoicePayload, "tax">) {
+  const tax = payload.tax;
+  if (!tax) return {};
+  return {
+    tax_country: tax.tax_country,
+    tax_treatment: tax.tax_treatment,
+    tax_split: tax.tax_split,
+    place_of_supply: tax.place_of_supply,
+  };
+}
 import { numberingPeriodLabel } from "@/lib/invoice-options";
 import { DEFAULT_INVOICE_PREFIX } from "@/lib/brand";
 import type {
@@ -1349,9 +1375,7 @@ export const demoDb = {
         vatCategory: product.vat_category,
       };
     });
-    const totals = calcInvoiceTotals(lineInputs, {
-      pricesIncludeVat: !!payload.prices_include_vat,
-    });
+    const totals = calcInvoiceTotals(lineInputs, demoCalcOptions(payload));
 
     s.invoiceSeq += 1;
     const fy = numberingPeriodLabel(s.organization.numbering_period ?? "calendar");
@@ -1396,6 +1420,7 @@ export const demoDb = {
       grand_total: totals.grandTotal,
       currency: s.organization.currency,
       prices_include_vat: !!payload.prices_include_vat,
+      ...demoTaxFields(payload),
       status: "issued",
       amount_paid: 0,
       cancelled_reason: null,
@@ -1489,9 +1514,7 @@ export const demoDb = {
         vatCategory: product.vat_category,
       };
     });
-    const totals = calcInvoiceTotals(lineInputs, {
-      pricesIncludeVat: !!payload.prices_include_vat,
-    });
+    const totals = calcInvoiceTotals(lineInputs, demoCalcOptions(payload));
 
     const items: InvoiceItem[] = payload.items.map((item, idx) => {
       const product = s.products.find((p) => p.id === item.product_id)!;
@@ -1532,6 +1555,7 @@ export const demoDb = {
     inv.edited_by = payload.user_id;
     inv.items = items;
     inv.customer = customer;
+    Object.assign(inv, demoTaxFields(payload));
     if (payload.warehouse_id !== undefined) {
       inv.warehouse_id = payload.warehouse_id ?? null;
     }
@@ -1732,7 +1756,14 @@ export const demoDb = {
         vatCategory: product.vat_category,
       };
     });
-    const totals = calcInvoiceTotals(lineInputs);
+    const ctx = resolveTaxContext({
+      sellerCountry: s.organization.country,
+      sellerState: s.organization.state,
+      currency: s.organization.currency,
+      customer: supplier,
+      treatment: "domestic",
+    });
+    const totals = calcInvoiceTotals(lineInputs, calcOptionsFor(ctx, false));
 
     s.purchaseSeq += 1;
     const fy = numberingPeriodLabel(s.organization.numbering_period ?? "calendar");
@@ -1772,6 +1803,8 @@ export const demoDb = {
       round_off: totals.roundOff,
       grand_total: totals.grandTotal,
       currency: s.organization.currency,
+      tax_country: ctx.country.code,
+      tax_split: ctx.split,
       status: "received",
       notes: payload.notes || null,
       created_by: payload.user_id,
@@ -1861,9 +1894,7 @@ export const demoDb = {
         vatCategory: normalizeVatCategory(orig.vat_category, orig.vat_rate),
       };
     });
-    const totals = calcInvoiceTotals(lineInputs, {
-      pricesIncludeVat: !!inv.prices_include_vat,
-    });
+    const totals = calcInvoiceTotals(lineInputs, calcOptionsForDocument(inv, !!inv.prices_include_vat));
 
     s.creditNoteSeq += 1;
     const fy = numberingPeriodLabel(s.organization.numbering_period ?? "calendar");
@@ -1900,6 +1931,7 @@ export const demoDb = {
       round_off: totals.roundOff,
       grand_total: totals.grandTotal,
       currency: inv.currency,
+      ...copiedTaxFields(inv),
       reason: payload.reason || null,
       status: "issued",
       created_by: payload.user_id,
