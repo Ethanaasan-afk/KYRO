@@ -148,6 +148,7 @@ function NavItem({
   active,
   onNavigate,
   tourId,
+  badge,
 }: {
   href: string;
   label: string;
@@ -155,6 +156,8 @@ function NavItem({
   active: boolean;
   onNavigate: () => void;
   tourId?: string;
+  /** Small pill after the label, e.g. "Pro" for features on a higher plan */
+  badge?: string;
 }) {
   return (
     <Link
@@ -174,7 +177,17 @@ function NavItem({
           active ? "text-white" : "text-sidebar-text group-hover:text-[var(--sidebar-heading)]"
         )}
       />
-      {label}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {badge && (
+        <span
+          className={cn(
+            "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+            active ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
+          )}
+        >
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -212,8 +225,7 @@ export function Sidebar() {
       (!n.adminOnly || isAdmin) &&
       (!n.jewelleryOnly || isJewellery) &&
       (!n.hotelOnly || isHotel) &&
-      (!n.hideForHotel || !isHotel) &&
-      (!n.requiresCapability || can(n.requiresCapability))
+      (!n.hideForHotel || !isHotel)
   );
   const internalItems = internalNav.filter((n) => !n.adminOnly || isAdmin);
   const adminItems = adminNav.filter((n) => !n.adminOnly || isAdmin);
@@ -255,6 +267,8 @@ export function Sidebar() {
             tourId={item.tourId}
             active={isActive(item.href)}
             onNavigate={close}
+            // Always listed so people can find them; the page explains the upgrade
+            badge={item.requiresCapability && !can(item.requiresCapability) ? "Pro" : undefined}
           />
         ))}
 
