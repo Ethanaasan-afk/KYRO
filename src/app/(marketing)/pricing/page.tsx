@@ -39,7 +39,7 @@ export default function PricingPage() {
   return (
     <main>
       <PageHero
-        eyebrow="Pricing in AED"
+        eyebrow="Pricing in AED or ₹"
         title="Simple pricing."
         accent="Pays for itself."
         body="Every plan includes tax invoices for your country, VAT / GST return summaries, email & WhatsApp sending and all 16 trades. Start free for 14 days - no card required."

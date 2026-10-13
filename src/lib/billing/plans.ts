@@ -7,6 +7,10 @@ export type BillingInterval = "monthly" | "annual";
 export type PlanLimits = {
   maxInvoicesPerMonth: number | null; // null = unlimited
   maxActiveProducts: number | null;
+  /** Active employees in Staff & Attendance (null = unlimited) */
+  maxEmployees: number | null;
+  /** Questions to Ask KYRO per calendar month */
+  maxAiQuestions: number;
 };
 
 /** Capability flags used for comparison checklist + future gating. */
@@ -18,14 +22,64 @@ export type PlanCapabilities = {
   emailSupport: boolean;
   prioritySupport: boolean;
   dedicatedSupport: boolean;
+  /** Point of sale counter screen */
+  pos: boolean;
+  /** Staff check-in / check-out with photos */
+  attendance: boolean;
+  /** Ask KYRO, the AI assistant */
+  aiAssistant: boolean;
 };
 
 /**
- * Subscription prices are shown in this currency. The amount actually charged comes
- * from the Razorpay plan behind RAZORPAY_PLAN_* - create those plans in AED with the
- * same amounts so the page and the checkout always agree.
+ * Two price lists. Businesses in India pay in rupees; everyone else (Gulf, UK,
+ * Europe) pays in dirhams. The amount actually charged comes from the Razorpay
+ * plan behind each env var - create those plans with the same amounts so the
+ * page and the checkout always agree:
+ *   AED: RAZORPAY_PLAN_STARTER / _PRO / _BUSINESS
+ *   INR: RAZORPAY_PLAN_STARTER_INR / _PRO_INR / _BUSINESS_INR
  */
-export const PLAN_CURRENCY = "AED";
+export type PriceRegion = "global" | "india";
+
+export const PRICE_REGIONS: Record<PriceRegion, { currency: string; locale: string; label: string }> = {
+  global: { currency: "AED", locale: "en-AE", label: "Gulf, UK & Europe (AED)" },
+  india: { currency: "INR", locale: "en-IN", label: "India (₹)" },
+};
+
+/** Monthly and yearly list prices per region. Yearly = 10 months (2 free). */
+export const REGION_PRICES: Record<PriceRegion, Record<PaidPlanId, { monthly: number; annual: number }>> = {
+  global: {
+    starter: { monthly: 49, annual: 490 },
+    pro: { monthly: 99, annual: 990 },
+    business: { monthly: 199, annual: 1990 },
+  },
+  india: {
+    starter: { monthly: 499, annual: 4999 },
+    pro: { monthly: 999, annual: 9999 },
+    business: { monthly: 1999, annual: 19999 },
+  },
+};
+
+/**
+ * Ask KYRO questions per month. India's allowance is lower because each answer
+ * costs the same in dollars while the rupee price is lower. Mirrors
+ * plan_limit('ai_questions' / 'ai_questions_in') in migration 043.
+ */
+export const AI_QUESTIONS: Record<PriceRegion, Record<PlanId, number>> = {
+  global: { free: 30, starter: 100, pro: 400, business: 1500 },
+  india: { free: 20, starter: 50, pro: 200, business: 600 },
+};
+
+export function priceRegionFor(country: string | null | undefined): PriceRegion {
+  return (country ?? "").toUpperCase() === "IN" ? "india" : "global";
+}
+
+export function aiQuestionsFor(plan: string | null | undefined, country: string | null | undefined): number {
+  const id: PlanId = plan === "starter" || plan === "pro" || plan === "business" ? plan : "free";
+  return AI_QUESTIONS[priceRegionFor(country)][id];
+}
+
+/** @deprecated Use PRICE_REGIONS[region].currency */
+export const PLAN_CURRENCY = PRICE_REGIONS.global.currency;
 
 export type PlanDefinition = {
   id: PaidPlanId;
@@ -67,10 +121,10 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
   starter: {
     id: "starter",
     name: "Starter",
-    priceMonthly: 29,
-    priceAnnual: 290,
+    priceMonthly: 49,
+    priceAnnual: 490,
     compareAtMonthly: null,
-    compareAtAnnual: 348,
+    compareAtAnnual: 588,
     periodLabel: "/ month",
     description: "For small teams getting started with VAT billing.",
     features: [
@@ -79,7 +133,7 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
       "Inventory & VAT tax invoices",
       "Email support",
     ],
-    limits: { maxInvoicesPerMonth: 50, maxActiveProducts: 100 },
+    limits: { maxInvoicesPerMonth: 50, maxActiveProducts: 100, maxEmployees: 5, maxAiQuestions: 100 },
     capabilities: {
       inventoryGst: true,
       gstrExport: true,
@@ -88,16 +142,19 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
       emailSupport: true,
       prioritySupport: false,
       dedicatedSupport: false,
+      pos: true,
+      attendance: true,
+      aiAssistant: true,
     },
     envPlanIdKey: "RAZORPAY_PLAN_STARTER",
   },
   pro: {
     id: "pro",
     name: "Pro",
-    priceMonthly: 59,
-    priceAnnual: 590,
+    priceMonthly: 99,
+    priceAnnual: 990,
     compareAtMonthly: null,
-    compareAtAnnual: 708,
+    compareAtAnnual: 1188,
     periodLabel: "/ month",
     description: "Growing businesses with higher volume.",
     features: [
@@ -106,7 +163,7 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
       "Purchases & credit notes",
       "Priority support",
     ],
-    limits: { maxInvoicesPerMonth: 300, maxActiveProducts: null },
+    limits: { maxInvoicesPerMonth: 300, maxActiveProducts: null, maxEmployees: 15, maxAiQuestions: 400 },
     capabilities: {
       inventoryGst: true,
       gstrExport: true,
@@ -115,6 +172,9 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
       emailSupport: true,
       prioritySupport: true,
       dedicatedSupport: false,
+      pos: true,
+      attendance: true,
+      aiAssistant: true,
     },
     recommended: true,
     envPlanIdKey: "RAZORPAY_PLAN_PRO",
@@ -122,10 +182,10 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
   business: {
     id: "business",
     name: "Business",
-    priceMonthly: 119,
-    priceAnnual: 1190,
+    priceMonthly: 199,
+    priceAnnual: 1990,
     compareAtMonthly: null,
-    compareAtAnnual: 1428,
+    compareAtAnnual: 2388,
     periodLabel: "/ month",
     description: "Unlimited usage for established operations.",
     features: [
@@ -134,7 +194,7 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
       "Multi-warehouse ready",
       "Dedicated support",
     ],
-    limits: { maxInvoicesPerMonth: null, maxActiveProducts: null },
+    limits: { maxInvoicesPerMonth: null, maxActiveProducts: null, maxEmployees: null, maxAiQuestions: 1500 },
     capabilities: {
       inventoryGst: true,
       gstrExport: true,
@@ -143,6 +203,9 @@ export const PAID_PLANS: Record<PaidPlanId, PlanDefinition> = {
       emailSupport: true,
       prioritySupport: true,
       dedicatedSupport: true,
+      pos: true,
+      attendance: true,
+      aiAssistant: true,
     },
     envPlanIdKey: "RAZORPAY_PLAN_BUSINESS",
   },
@@ -153,19 +216,24 @@ export const PAID_PLAN_ORDER: PaidPlanId[] = ["starter", "pro", "business"];
 export const TRIAL_LIMITS: PlanLimits = {
   maxInvoicesPerMonth: 50,
   maxActiveProducts: 100,
+  maxEmployees: 5,
+  maxAiQuestions: 30,
 };
 
 export type PlanChecklistItem = {
   id: string;
   label: string;
   included: boolean;
+  /** Comparison table: row name shared by every plan, and this plan's short value */
+  rowLabel?: string;
+  value?: string;
 };
 
 /**
  * Comparison checklist derived from each plan’s limits + capabilities
  * so the cards stay in sync with what gating actually uses.
  */
-export function getPlanChecklist(planId: PaidPlanId): PlanChecklistItem[] {
+export function getPlanChecklist(planId: PaidPlanId, region: PriceRegion = "global"): PlanChecklistItem[] {
   const plan = PAID_PLANS[planId];
   const { limits, capabilities } = plan;
 
@@ -179,9 +247,41 @@ export function getPlanChecklist(planId: PaidPlanId): PlanChecklistItem[] {
       ? "Unlimited products"
       : `Up to ${limits.maxActiveProducts} active products`;
 
+  const employeeLabel =
+    limits.maxEmployees == null
+      ? "Unlimited staff attendance"
+      : `Attendance for up to ${limits.maxEmployees} staff`;
+
   return [
-    { id: "invoices", label: invoiceLabel, included: true },
-    { id: "products", label: productLabel, included: true },
+    {
+      id: "invoices",
+      label: invoiceLabel,
+      included: true,
+      rowLabel: "Invoices / month",
+      value: limits.maxInvoicesPerMonth == null ? "Unlimited" : String(limits.maxInvoicesPerMonth),
+    },
+    {
+      id: "products",
+      label: productLabel,
+      included: true,
+      rowLabel: "Active products",
+      value: limits.maxActiveProducts == null ? "Unlimited" : String(limits.maxActiveProducts),
+    },
+    { id: "pos", label: "Point of sale counter", included: capabilities.pos },
+    {
+      id: "attendance",
+      label: `${employeeLabel}, with photos`,
+      included: capabilities.attendance,
+      rowLabel: "Staff attendance with photos",
+      value: limits.maxEmployees == null ? "Unlimited" : `${limits.maxEmployees} staff`,
+    },
+    {
+      id: "ai",
+      label: `Ask KYRO AI: ${AI_QUESTIONS[region][planId].toLocaleString("en-US")} questions / month`,
+      included: capabilities.aiAssistant,
+      rowLabel: "Ask KYRO AI questions / month",
+      value: AI_QUESTIONS[region][planId].toLocaleString("en-US"),
+    },
     {
       id: "inventory_gst",
       label: "Inventory & VAT tax invoices",
@@ -220,13 +320,16 @@ export function getPlanChecklist(planId: PaidPlanId): PlanChecklistItem[] {
   ];
 }
 
-export function getPlanPrice(plan: PlanDefinition, interval: BillingInterval): PlanPriceView {
+export function getPlanPrice(
+  plan: PlanDefinition,
+  interval: BillingInterval,
+  region: PriceRegion = "global"
+): PlanPriceView {
+  const list = REGION_PRICES[region][plan.id];
   if (interval === "annual") {
-    const price = plan.priceAnnual;
-    const compareAt =
-      plan.compareAtAnnual != null && plan.compareAtAnnual > price
-        ? plan.compareAtAnnual
-        : null;
+    const price = list.annual;
+    // Strike-through yearly price is the honest "12 × monthly"
+    const compareAt = list.monthly * 12 > price ? list.monthly * 12 : null;
     return {
       price,
       compareAt,
@@ -235,9 +338,9 @@ export function getPlanPrice(plan: PlanDefinition, interval: BillingInterval): P
     };
   }
 
-  const price = plan.priceMonthly;
+  const price = list.monthly;
   const compareAt =
-    plan.compareAtMonthly != null && plan.compareAtMonthly > price
+    region === "global" && plan.compareAtMonthly != null && plan.compareAtMonthly > price
       ? plan.compareAtMonthly
       : null;
   return {
@@ -292,30 +395,36 @@ export function capabilityUpgradeMessage(capability: keyof PlanCapabilities): st
   }
 }
 
-export function getRazorpayPlanId(plan: PaidPlanId): string {
-  const def = PAID_PLANS[plan];
-  const value = process.env[def.envPlanIdKey];
+export function razorpayPlanEnvKey(plan: PaidPlanId, region: PriceRegion = "global"): string {
+  const base = PAID_PLANS[plan].envPlanIdKey;
+  return region === "india" ? `${base}_INR` : base;
+}
+
+export function getRazorpayPlanId(plan: PaidPlanId, region: PriceRegion = "global"): string {
+  const key = razorpayPlanEnvKey(plan, region);
+  const value = process.env[key];
   if (!value) {
-    throw new Error(`Missing env ${def.envPlanIdKey}. Create the plan in Razorpay and add it to .env.local.`);
+    throw new Error(`Missing env ${key}. Create the plan in Razorpay and add it to the environment variables.`);
   }
   return value;
 }
 
 export function mapRazorpayPlanIdToTier(razorpayPlanId: string | undefined | null): PaidPlanId | null {
   if (!razorpayPlanId) return null;
-  const starter = process.env.RAZORPAY_PLAN_STARTER;
-  const pro = process.env.RAZORPAY_PLAN_PRO;
-  const business = process.env.RAZORPAY_PLAN_BUSINESS;
-  if (starter && razorpayPlanId === starter) return "starter";
-  if (pro && razorpayPlanId === pro) return "pro";
-  if (business && razorpayPlanId === business) return "business";
+  for (const tier of PAID_PLAN_ORDER) {
+    for (const region of ["global", "india"] as const) {
+      const id = process.env[razorpayPlanEnvKey(tier, region)];
+      if (id && razorpayPlanId === id) return tier;
+    }
+  }
   return null;
 }
 
-export function formatPlanPrice(amount: number): string {
-  return new Intl.NumberFormat("en-AE", {
+export function formatPlanPrice(amount: number, region: PriceRegion = "global"): string {
+  const { currency, locale } = PRICE_REGIONS[region];
+  return new Intl.NumberFormat(locale, {
     style: "currency",
-    currency: PLAN_CURRENCY,
+    currency,
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(amount);

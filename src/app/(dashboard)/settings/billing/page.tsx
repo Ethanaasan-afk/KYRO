@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingBlock, PageHeader } from "@/components/ui/page-header";
 import { useToast } from "@/components/ui/toast";
 import { useOrganization } from "@/hooks/use-company";
+import { priceRegionFor } from "@/lib/billing/plans";
 import { useBillingEvents } from "@/hooks/use-billing-events";
 import { useOrgAccess } from "@/hooks/use-org-access";
 import { type PaidPlanId } from "@/lib/billing/plans";
@@ -215,6 +216,7 @@ export default function BillingPage() {
           <PricingPlans
             variant="billing"
             hideHeading
+            region={priceRegionFor(org.country)}
             busyPlan={busyPlan}
             onSelectPlan={(id) => void openCheckout(id)}
           />

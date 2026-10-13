@@ -16,7 +16,7 @@ function hasSupabaseEnv() {
 }
 
 /** Pages only an organization admin may open (data is also protected by RLS). */
-const ADMIN_PATHS = ["/settings", "/users", "/warehouses"];
+const ADMIN_PATHS = ["/settings", "/users", "/warehouses", "/staff", "/attendance"];
 
 /** Server-to-server callers that legitimately post from another origin. */
 const CROSS_ORIGIN_POST_ALLOWED = ["/api/billing/webhook"];
@@ -94,7 +94,8 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/refunds") ||
     path.startsWith("/refund-policy");
   const isSetupPage = path.startsWith("/setup");
-  const isShortLink = path.startsWith("/i/");
+  // Public links: invoice short links, and each employee's private phone check-in page
+  const isShortLink = path.startsWith("/i/") || path.startsWith("/checkin/");
   const isPublicAsset =
     path.startsWith("/_next") ||
     path.startsWith("/marketing") ||

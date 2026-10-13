@@ -279,10 +279,62 @@ r = await asUser(ids.staffA, `select public.record_payment($1::jsonb) as p`, [JS
 const paid = bhdId ? await one(`select status, amount_paid from public.invoices where id=$1`, [bhdId]) : null;
 check(r.ok && paid?.status === "paid" && Number(paid.amount_paid) === 1.357, `paying 1.357 BHD marks the invoice paid (${paid ? `${paid.status} ${paid.amount_paid}` : r.msg})`);
 r = await asUser(ids.staffA, `select public.kyro_schema_version() as v`);
-check(r.ok && r.rows[0].v === 42, "the app can tell migration 042 ran");
+check(r.ok && r.rows[0].v >= 42, "the app can tell migration 042 ran");
 r = await asUser(ids.adminB, `select id from public.invoices where id=$1`, [bhdId]);
 check(r.ok && r.rows.length === 0, "another business still cannot see the invoice");
 await db.query(`update public.organizations set country='AE', currency='AED' where id=$1`, [orgA.id]);
+
+// ---------- staff attendance and Ask KYRO (043) ----------
+r = await asUser(ids.staffA, `insert into public.employees (organization_id, full_name) values ($1, 'Ravi') returning id`, [orgA.id]);
+check(!r.ok, "staff cannot add employees");
+r = await asUser(ids.acctA, `insert into public.employees (organization_id, full_name) values ($1, 'Ravi') returning id`, [orgA.id]);
+check(!r.ok, "accountants cannot add employees");
+r = await asUser(ids.adminA, `insert into public.employees (organization_id, full_name, job_title) values ($1, 'Ravi', 'Cashier') returning id, checkin_token`, [orgA.id]);
+const emp = r.ok ? r.rows[0] : null;
+check(!!emp && emp.checkin_token.length === 64, `an admin can add an employee with a private check-in link (${r.msg ?? "ok"})`);
+r = await asUser(ids.adminB, `select id from public.employees where id=$1`, [emp?.id]);
+check(r.ok && r.rows.length === 0, "another business cannot see the employee");
+r = await asUser(ids.adminB, `insert into public.employees (organization_id, full_name) values ($1, 'Spy') returning id`, [orgA.id]);
+check(!r.ok, "an admin cannot add employees to another business");
+await db.query(`insert into public.employee_secrets (employee_id, organization_id, pin_hash) values ($1, $2, 'scrypt$x$y')`, [emp.id, orgA.id]);
+r = await asUser(ids.adminA, `select pin_hash from public.employee_secrets`);
+check(!r.ok || r.rows.length === 0, "no signed-in user can read PIN hashes");
+r = await asUser(ids.adminA, `insert into public.attendance (organization_id, employee_id, kind, source) values ($1, $2, 'in', 'kiosk')`, [orgA.id, emp.id]);
+check(!r.ok, "signed-in users cannot fake a photo punch");
+r = await asUser(ids.adminA, `insert into public.attendance (organization_id, employee_id, kind, source, note) values ($1, $2, 'in', 'manual', 'Forgot to check in') returning id`, [orgA.id, emp.id]);
+check(r.ok, `an admin can add a manual correction (${r.msg ?? "ok"})`);
+r = await asUser(ids.staffA, `insert into public.attendance (organization_id, employee_id, kind, source) values ($1, $2, 'in', 'manual')`, [orgA.id, emp.id]);
+check(!r.ok, "staff cannot add manual corrections");
+r = await asUser(ids.staffA, `select public.attendance_punch($1, 'kiosk', null, now() - interval '1 hour') as p`, [emp.id]);
+check(!r.ok, "only the server can record a punch");
+await db.query(`delete from public.attendance where employee_id=$1`, [emp.id]);
+const p1 = await one(`select (public.attendance_punch($1, 'kiosk', 'x/punches/1.jpg', now() - interval '1 hour')).kind as k`, [emp.id]);
+const p2 = await one(`select (public.attendance_punch($1, 'phone', 'x/punches/2.jpg', now() - interval '1 hour', 25.2, 55.3, 12)).kind as k`, [emp.id]);
+check(p1.k === "in" && p2.k === "out", `punches alternate in and out (${p1.k}, ${p2.k})`);
+r = await asUser(ids.staffA, `select count(*)::int as n from public.attendance where employee_id=$1`, [emp.id]);
+check(r.ok && r.rows[0].n === 2, "staff of the same business can see attendance");
+r = await asUser(ids.adminB, `select count(*)::int as n from public.attendance where employee_id=$1`, [emp.id]);
+check(r.ok && r.rows[0].n === 0, "another business cannot see attendance");
+await db.query(`update public.organizations set plan='free', subscription_status='trialing', trial_ends_at=now() + interval '7 days' where id=$1`, [orgA.id]);
+for (let i = 0; i < 4; i++) await asUser(ids.adminA, `insert into public.employees (organization_id, full_name) values ($1, $2)`, [orgA.id, `Staff ${i}`]);
+r = await asUser(ids.adminA, `insert into public.employees (organization_id, full_name) values ($1, 'Sixth') returning id`, [orgA.id]);
+check(!r.ok && /employees/.test(r.msg), `the trial stops at 5 active employees (${r.msg ?? "allowed"})`);
+const ai1 = await one(`select * from public.ai_usage_take($1)`, [orgA.id]);
+check(ai1.allowed && ai1.used === 1 && ai1.max_questions === 30, `Ask KYRO counts questions against the plan (${ai1.used}/${ai1.max_questions})`);
+await db.query(`update public.ai_usage set questions = 30 where organization_id=$1`, [orgA.id]);
+const ai2 = await one(`select * from public.ai_usage_take($1)`, [orgA.id]);
+check(!ai2.allowed, "Ask KYRO stops at the monthly allowance");
+await db.query(`update public.organizations set country='IN', currency='INR' where id=$1`, [orgA.id]);
+await db.query(`update public.ai_usage set questions = 19 where organization_id=$1`, [orgA.id]);
+const ai3 = await one(`select * from public.ai_usage_take($1)`, [orgA.id]);
+const ai4 = await one(`select * from public.ai_usage_take($1)`, [orgA.id]);
+check(ai3.allowed && ai3.max_questions === 20 && !ai4.allowed, `India's trial allowance is 20 questions (${ai3.max_questions})`);
+await db.query(`update public.organizations set country='AE', currency='AED' where id=$1`, [orgA.id]);
+r = await asUser(ids.adminA, `select * from public.ai_usage_take($1)`, [orgA.id]);
+check(!r.ok, "only the server can count AI questions");
+await db.query(`update public.organizations set plan='business', subscription_status='active', trial_ends_at=null where id=$1`, [orgA.id]);
+r = await asUser(ids.adminB, `select * from public.ai_usage where organization_id=$1`, [orgA.id]);
+check(r.ok && r.rows.length === 0, "another business cannot see AI usage");
 
 // ---------- re-running the latest migrations is safe ----------
 for (const f of numbered.slice(-3)) {

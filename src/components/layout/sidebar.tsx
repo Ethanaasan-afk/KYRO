@@ -23,6 +23,10 @@ import {
   Gem,
   CalendarRange,
   BedDouble,
+  Store,
+  Sparkles,
+  Contact,
+  CalendarCheck,
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -51,6 +55,8 @@ const billingNav: {
   tourId?: string;
 }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, tourId: "tour-dashboard" },
+  { href: "/pos", label: "POS", icon: Store, hideForHotel: true, tourId: "tour-pos" },
+  { href: "/assistant", label: "Ask KYRO", icon: Sparkles, tourId: "tour-assistant" },
   {
     href: "/products",
     label: "Products",
@@ -127,6 +133,8 @@ const internalNav: {
   tourId?: string;
 }[] = [
   { href: "/business-data", label: "Business Data", icon: Briefcase, tourId: "tour-business-data" },
+  { href: "/staff", label: "Staff", icon: Contact, adminOnly: true, tourId: "tour-staff" },
+  { href: "/attendance", label: "Attendance", icon: CalendarCheck, adminOnly: true, tourId: "tour-attendance" },
 ];
 
 const adminNav: {

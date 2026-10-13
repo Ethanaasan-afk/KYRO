@@ -1,6 +1,6 @@
 "use client";
 
-import { PAID_PLANS, PAID_PLAN_ORDER, formatPlanPrice, getPlanChecklist } from "@/lib/billing/plans";
+import { PAID_PLANS, PAID_PLAN_ORDER, REGION_PRICES, formatPlanPrice, getPlanChecklist } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { Check, Clock, Minus, Sparkles, Wallet } from "lucide-react";
@@ -146,7 +146,7 @@ export function ComparisonTable() {
   const lists = PAID_PLAN_ORDER.map((id) => getPlanChecklist(id));
   const planRows = lists[0]!.map((item, i) => ({
     group: "Plan limits",
-    label: item.label.replace(/^Up to \d+ /, "").replace(/^Unlimited /, ""),
+    label: item.rowLabel ?? item.label,
     cells: lists.map((l) => l[i]!),
   }));
 
@@ -170,7 +170,10 @@ export function ComparisonTable() {
                         {PAID_PLANS[id].name}
                       </span>
                       <span className="block font-mono text-xs font-normal text-white/50">
-                        {formatPlanPrice(PAID_PLANS[id].priceMonthly)} / mo
+                        {formatPlanPrice(REGION_PRICES.global[id].monthly)} / mo
+                      </span>
+                      <span className="block font-mono text-[11px] font-normal text-white/35">
+                        {formatPlanPrice(REGION_PRICES.india[id].monthly, "india")} in India
                       </span>
                     </th>
                   ))}
@@ -192,10 +195,8 @@ export function ComparisonTable() {
                     <td className="px-5 py-3.5 text-white/80">{r.label.charAt(0).toUpperCase() + r.label.slice(1)}</td>
                     {r.cells.map((c, i) => (
                       <td key={i} className="px-5 py-3.5 text-center">
-                        {/^(Up to|Unlimited)/.test(c.label) ? (
-                          <span className="font-mono text-xs text-white/80">
-                            {c.label.startsWith("Unlimited") ? "Unlimited" : c.label.match(/\d+/)?.[0]}
-                          </span>
+                        {c.value ? (
+                          <span className="font-mono text-xs text-white/80">{c.value}</span>
                         ) : c.included ? (
                           <Check className="mx-auto h-4 w-4 text-[#6ee7b7]" />
                         ) : (

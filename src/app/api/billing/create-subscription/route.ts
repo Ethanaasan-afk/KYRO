@@ -1,7 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRazorpay } from "@/lib/billing/razorpay";
-import { getRazorpayPlanId, type PaidPlanId, PAID_PLANS, PLAN_CURRENCY } from "@/lib/billing/plans";
+import {
+  getRazorpayPlanId,
+  type PaidPlanId,
+  PAID_PLANS,
+  PRICE_REGIONS,
+  priceRegionFor,
+  razorpayPlanEnvKey,
+  REGION_PRICES,
+} from "@/lib/billing/plans";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { rateLimit, tooManyRequests } from "@/lib/security/rate-limit";
@@ -53,8 +61,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Organization not found" }, { status: 400 });
     }
 
+    // Indian businesses pay the rupee plan; everyone else the dirham plan
+    const region = priceRegionFor(org.country as string | null);
+    if (!process.env[razorpayPlanEnvKey(plan, region)]) {
+      console.error(`[billing/create-subscription] ${razorpayPlanEnvKey(plan, region)} is not set`);
+      return NextResponse.json({ error: "Payments are not set up yet. Please contact support." }, { status: 500 });
+    }
     const razorpay = getRazorpay();
-    const razorpayPlanId = getRazorpayPlanId(plan);
+    const razorpayPlanId = getRazorpayPlanId(plan, region);
 
     let customerId = org.razorpay_customer_id as string | null;
     if (!customerId) {
@@ -106,8 +120,8 @@ export async function POST(request: Request) {
       keyId,
       plan,
       planName: PAID_PLANS[plan].name,
-      amount: PAID_PLANS[plan].priceMonthly,
-      currency: PLAN_CURRENCY,
+      amount: REGION_PRICES[region][plan].monthly,
+      currency: PRICE_REGIONS[region].currency,
       prefill: {
         name: org.brand_name || org.name,
         email: org.email || user.email,

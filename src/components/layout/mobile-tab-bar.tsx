@@ -42,6 +42,9 @@ export function MobileTabBar({ onMore }: { onMore: () => void }) {
     },
   ] as const;
 
+  // The POS has its own bottom bar (the cart); the tab bar would cover it
+  if (pathname === "/pos") return null;
+
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur-md md:hidden"

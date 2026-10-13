@@ -628,3 +628,43 @@ export interface RecurringInvoice {
   created_at: string;
   customer?: Pick<Customer, "id" | "name"> | null;
 }
+
+/** Someone who works in the business. Employees don't need an app login. */
+export interface Employee {
+  id: string;
+  organization_id?: string;
+  full_name: string;
+  job_title: string | null;
+  phone: string | null;
+  /** Shop wall-clock time, "09:00:00" */
+  shift_start: string | null;
+  shift_end: string | null;
+  /** May check in from their own phone using their private link */
+  allow_phone: boolean;
+  checkin_token: string;
+  /** Reference photo in the private attendance bucket */
+  photo_path: string | null;
+  has_pin: boolean;
+  active: boolean;
+  created_at: string;
+}
+
+export type AttendanceSource = "kiosk" | "phone" | "manual";
+
+/** One check-in or check-out */
+export interface AttendancePunch {
+  id: string;
+  organization_id?: string;
+  employee_id: string;
+  kind: "in" | "out";
+  at: string;
+  source: AttendanceSource;
+  /** Selfie taken at the moment of the punch (private bucket path, or a data URL in demo mode) */
+  photo_path: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}

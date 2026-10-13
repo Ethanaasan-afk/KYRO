@@ -6,13 +6,17 @@ import {
   getPlanPrice,
   PAID_PLAN_ORDER,
   PAID_PLANS,
+  PRICE_REGIONS,
+  priceRegionFor,
   type BillingInterval,
   type PaidPlanId,
+  type PriceRegion,
 } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
+import { guessCountryFromTimeZone } from "@/lib/vat/countries";
 import { Check, Crown, Leaf, Sparkles, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const TIER_ICONS = {
   starter: Leaf,
@@ -34,6 +38,8 @@ type PricingPlansProps = {
   className?: string;
   /** Hide the section heading (billing page already has PageHeader context) */
   hideHeading?: boolean;
+  /** Fixed price list (billing page: the business's country). Omit to let visitors switch. */
+  region?: PriceRegion;
 };
 
 export function PricingPlans({
@@ -42,8 +48,15 @@ export function PricingPlans({
   busyPlan = null,
   className,
   hideHeading = false,
+  region: fixedRegion,
 }: PricingPlansProps) {
   const [interval, setInterval] = useState<BillingInterval>("monthly");
+  const [pickedRegion, setPickedRegion] = useState<PriceRegion>("global");
+  // Guess after mount so the server-rendered page and the first client render match
+  useEffect(() => {
+    if (!fixedRegion) setPickedRegion(priceRegionFor(guessCountryFromTimeZone()));
+  }, [fixedRegion]);
+  const region = fixedRegion ?? pickedRegion;
 
   return (
     <div className={cn("w-full", className)}>
@@ -61,7 +74,25 @@ export function PricingPlans({
         </div>
       ) : null}
 
-      <div className={cn("flex justify-center", hideHeading ? "" : "mt-8")}>
+      <div className={cn("flex flex-wrap items-center justify-center gap-3", hideHeading ? "" : "mt-8")}>
+        {!fixedRegion && (
+          <div role="group" aria-label="Price list" className="inline-flex rounded-full border border-border bg-cloud p-1 shadow-sm">
+            {(Object.keys(PRICE_REGIONS) as PriceRegion[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={region === r}
+                onClick={() => setPickedRegion(r)}
+                className={cn(
+                  "min-h-[40px] rounded-full px-4 text-sm font-semibold transition-colors",
+                  region === r ? "bg-primary text-white shadow-sm" : "text-slate hover:text-ink"
+                )}
+              >
+                {PRICE_REGIONS[r].label}
+              </button>
+            ))}
+          </div>
+        )}
         <div
           role="group"
           aria-label="Billing interval"
@@ -114,6 +145,7 @@ export function PricingPlans({
             key={id}
             planId={id}
             interval={interval}
+            region={region}
             variant={variant}
             busy={busyPlan === id}
             onSelect={onSelectPlan}
@@ -127,19 +159,21 @@ export function PricingPlans({
 function PlanCard({
   planId,
   interval,
+  region,
   variant,
   busy,
   onSelect,
 }: {
   planId: PaidPlanId;
   interval: BillingInterval;
+  region: PriceRegion;
   variant: "marketing" | "billing";
   busy: boolean;
   onSelect?: (planId: PaidPlanId, interval: BillingInterval) => void;
 }) {
   const plan = PAID_PLANS[planId];
-  const price = getPlanPrice(plan, interval);
-  const checklist = getPlanChecklist(planId);
+  const price = getPlanPrice(plan, interval, region);
+  const checklist = getPlanChecklist(planId, region);
   const Icon = TIER_ICONS[planId];
   const popular = !!plan.recommended;
 
@@ -196,17 +230,17 @@ function PlanCard({
         <div className="flex flex-wrap items-baseline gap-2">
           {price.compareAt != null ? (
             <span className="font-mono text-sm text-slate-dim line-through">
-              {formatPlanPrice(price.compareAt)}
+              {formatPlanPrice(price.compareAt, region)}
             </span>
           ) : null}
           <span className="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-            {formatPlanPrice(price.price)}
+            {formatPlanPrice(price.price, region)}
           </span>
           <span className="text-sm font-medium text-slate">{price.periodSuffix}</span>
         </div>
         <p className="mt-1.5 text-sm text-slate">
           Only{" "}
-          <span className="font-semibold text-ink">{formatPlanPrice(price.perMonth)}</span> per month
+          <span className="font-semibold text-ink">{formatPlanPrice(price.perMonth, region)}</span> per month
         </p>
       </div>
 
