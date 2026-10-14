@@ -82,13 +82,15 @@ export function TopBar() {
       <NotificationsBell />
 
       <div className="flex items-center gap-2.5 rounded-[10px] border border-border bg-surface py-1.5 pl-1.5 pr-3 shadow-card">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-purple-dark)] to-[var(--brand-purple-light)] text-[11px] font-semibold text-white">
-          {initial}
-        </div>
-        <div className="hidden min-w-0 sm:block">
-          <p className="truncate text-sm font-medium text-ink">{user?.full_name}</p>
-          <p className="text-[11px] text-slate">{user ? ROLE_LABELS[user.role] ?? user.role : ""}</p>
-        </div>
+        <Link href="/account" className="flex items-center gap-2.5 rounded-lg hover:opacity-80" title="My account and security">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-purple-dark)] to-[var(--brand-purple-light)] text-[11px] font-semibold text-white">
+            {initial}
+          </div>
+          <div className="hidden min-w-0 sm:block">
+            <p className="truncate text-sm font-medium text-ink">{user?.full_name}</p>
+            <p className="text-[11px] text-slate">{user ? ROLE_LABELS[user.role] ?? user.role : ""}</p>
+          </div>
+        </Link>
         <button
           type="button"
           onClick={signOut}

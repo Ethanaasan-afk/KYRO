@@ -1,3 +1,4 @@
+import { mfaRequired } from "@/lib/security/mfa";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isDemoMode } from "@/lib/demo/mode";
@@ -35,6 +36,8 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const mfa = await mfaRequired(supabase);
+    if (mfa) return mfa;
 
     const { data: profile } = await supabase
       .from("users")

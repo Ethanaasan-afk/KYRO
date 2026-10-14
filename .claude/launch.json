@@ -39,6 +39,21 @@
         "NEXT_DIST_DIR": ".next-build"
       },
       "port": 3004
+    },
+    {
+      "name": "live",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "next",
+        "dev",
+        "-p",
+        "3006"
+      ],
+      "env": {
+        "NEXT_PUBLIC_GOOGLE_SIGN_IN": "1",
+        "NEXT_DIST_DIR": ".next-live"
+      },
+      "port": 3006
     }
   ]
 }

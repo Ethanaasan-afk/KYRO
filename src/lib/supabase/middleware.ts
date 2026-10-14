@@ -227,6 +227,29 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Two-step verification: with 2FA on, the authenticator code comes before any app page.
+  // (The database enforces the same rule - migration 044 - so the API is covered too.)
+  // API routes are included: several act with the service role after reading the
+  // signed-in user's profile, so the database rule alone would not stop them.
+  const isApi = path.startsWith("/api/");
+  if (user && (isApi || (!isPublic && !isCompleteSetup)) && !path.startsWith("/mfa")) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+      if (isApi) {
+        return NextResponse.json(
+          { error: "Enter your two-step verification code first." },
+          { status: 403 }
+        );
+      }
+      const url = request.nextUrl.clone();
+      url.pathname = "/mfa";
+      url.search = `?next=${encodeURIComponent(path)}`;
+      const redirect = NextResponse.redirect(url);
+      response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+      return redirect;
+    }
+  }
+
   // Admin-only pages: check the role on the server, not just in the browser
   if (user && isAdminPath(path)) {
     const { data: profile } = await supabase

@@ -221,10 +221,16 @@ export function ProductFormModal({
         setWastagePercent("0");
       }
     }
+    setCustomPack(false);
   }, [product, open, reset, emptyDefaults, isJewellery]);
 
   const name = watch("name");
   const pack = watch("pack_size");
+  // "Custom" lets the owner type their own pack size; the box starts empty
+  const [customPack, setCustomPack] = useState(false);
+  const packIsStandard =
+    PACK_SIZES.includes(pack as (typeof PACK_SIZES)[number]) || pack === "Unit" || pack === "Pcs";
+  const showCustomPack = customPack || (!!pack && !packIsStandard);
   const variant = watch("variant");
   const category = watch("category");
   const subcategory = watch("subcategory") ?? "";
@@ -458,17 +464,22 @@ export function ProductFormModal({
                       { value: "Pcs", label: "Pcs" },
                       { value: "custom", label: "Custom (type below)" },
                     ]}
-                    {...register("pack_size")}
+                    value={showCustomPack ? "custom" : pack}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setCustomPack(v === "custom");
+                      setValue("pack_size", v === "custom" ? "" : v, { shouldDirty: true });
+                    }}
                   />
-                  {!PACK_SIZES.includes(pack as (typeof PACK_SIZES)[number]) &&
-                    pack !== "Unit" &&
-                    pack !== "Pcs" && (
-                      <Input
-                        label={`Custom ${labels.packSize.toLowerCase()}`}
-                        {...register("pack_size")}
-                        className="sm:col-span-2"
-                      />
-                    )}
+                  {showCustomPack && (
+                    <Input
+                      label={`Custom ${labels.packSize.toLowerCase()}`}
+                      placeholder="e.g. 750 g tray"
+                      autoFocus={customPack}
+                      className="sm:col-span-2"
+                      {...register("pack_size")}
+                    />
+                  )}
                 </div>
               );
             case "sku":

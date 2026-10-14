@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthLegalFooter } from "@/components/auth/auth-legal-footer";
+import { GoogleButton } from "@/components/auth/google-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isDemoMode } from "@/lib/demo/mode";
@@ -51,6 +52,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("error") === "oauth") {
+      setError("Google sign-in was cancelled or didn’t finish. Try again, or sign in with your email.");
+    }
     if (new URLSearchParams(window.location.search).get("error") === "otp") {
       setError("That email link has expired or was opened on another device. If you just confirmed your email, sign in with your password below.");
     }
@@ -228,6 +232,7 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
+          <GoogleButton label="Continue with Google" next="/dashboard" />
           <Input
             id="email"
             label="Email"

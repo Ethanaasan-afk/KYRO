@@ -1,3 +1,4 @@
+import { mfaRequired } from "@/lib/security/mfa";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { AI_TOOLS, runAiTool } from "@/lib/ai/tools";
@@ -66,6 +67,8 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const mfa = await mfaRequired(supabase);
+    if (mfa) return mfa;
 
     const { data: profile } = await supabase
       .from("users")

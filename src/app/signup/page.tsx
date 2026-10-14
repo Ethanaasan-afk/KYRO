@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthLegalFooter } from "@/components/auth/auth-legal-footer";
+import { GoogleButton } from "@/components/auth/google-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -257,6 +258,7 @@ export default function SignupPage() {
           </div>
         ) : (
         <form onSubmit={onSubmit} className="space-y-4">
+          <GoogleButton label="Sign up with Google" next="/complete-setup" />
           <Input
             id="business_name"
             label="Business name"

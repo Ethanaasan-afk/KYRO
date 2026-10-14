@@ -336,6 +336,32 @@ await db.query(`update public.organizations set plan='business', subscription_st
 r = await asUser(ids.adminB, `select * from public.ai_usage where organization_id=$1`, [orgA.id]);
 check(r.ok && r.rows.length === 0, "another business cannot see AI usage");
 
+// ---------- two-step verification (044) ----------
+await db.exec(`
+create table if not exists auth.mfa_factors (id uuid primary key default gen_random_uuid(), user_id uuid, status text);
+create or replace function auth.jwt() returns jsonb language sql stable as
+  $f$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $f$;
+`);
+const seeInvoices = (aal) =>
+  as("authenticated", ids.staffA, async () => {
+    await db.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ aal })]);
+    try {
+      return (await db.query(`select count(*)::int as n from public.invoices`)).rows[0].n;
+    } finally {
+      await db.query(`select set_config('request.jwt.claims', '', false)`);
+    }
+  });
+const before = await seeInvoices("aal1");
+check(before > 0, `without 2FA, a password sign-in sees the business's invoices (${before})`);
+await db.query(`insert into auth.mfa_factors (user_id, status) values ($1, 'unverified')`, [ids.staffA]);
+check((await seeInvoices("aal1")) === before, "a half-finished 2FA setup changes nothing");
+await db.query(`update auth.mfa_factors set status = 'verified' where user_id = $1`, [ids.staffA]);
+check((await seeInvoices("aal1")) === 0, "with 2FA on, a password alone sees no business data");
+check((await seeInvoices("aal2")) === before, "after the authenticator code, the data is back");
+r = await as("authenticated", ids.staffA, () => attempt(() => db.query(`select full_name from public.users where id=$1`, [ids.staffA])));
+check(r.ok && r.rows.length === 1, "the app can still load the profile to ask for the code");
+await db.query(`delete from auth.mfa_factors where user_id = $1`, [ids.staffA]);
+
 // ---------- re-running the latest migrations is safe ----------
 for (const f of numbered.slice(-3)) {
   try {

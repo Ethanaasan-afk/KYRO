@@ -3,6 +3,7 @@
 import { ROLE_LABELS } from "@/lib/constants";
 import { useAuth } from "@/components/auth-provider";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -24,7 +25,8 @@ import { z } from "zod";
 type InviteForm = z.infer<typeof inviteUserSchema>;
 
 export default function UsersPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [apiError, setApiError] = useState("");
@@ -54,6 +56,18 @@ export default function UsersPage() {
   if (!isAdmin) {
     return <EmptyState title="Admin only" description="Only admins can manage users." />;
   }
+
+  const reset2fa = async (u: AppUser) => {
+    if (!window.confirm(`Turn off two-step verification for ${u.full_name}? They can sign in with just their password and set it up again.`)) return;
+    const res = await fetch("/api/users/reset-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: u.id }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return toast(json.error ?? "Could not reset", "error");
+    toast(json.removed ? `Two-step verification turned off for ${u.full_name}` : `${u.full_name} didn’t have two-step verification on`);
+  };
 
   const onInvite = async (values: InviteForm) => {
     setApiError("");
@@ -99,6 +113,7 @@ export default function UsersPage() {
                 <th>Name</th>
                 <th>Role</th>
                 <th>Created</th>
+                <th className="text-right">Sign-in</th>
               </tr>
             </thead>
             <tbody>
@@ -109,6 +124,17 @@ export default function UsersPage() {
                     <Badge variant={u.role === "admin" ? "info" : "default"}>{ROLE_LABELS[u.role] ?? u.role}</Badge>
                   </td>
                   <td className="font-mono text-xs text-slate">{formatDate(u.created_at)}</td>
+                  <td className="text-right">
+                    {u.id !== user?.id && !isDemoMode() && (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-primary hover:underline"
+                        onClick={() => void reset2fa(u)}
+                      >
+                        Reset two-step
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -14,6 +14,11 @@ export async function GET(request: Request) {
   // Only ever send people to a page on this site (no open redirect)
   const next = safeRedirectPath(searchParams.get("next"));
 
+  // Google (or another provider) sent the person back with an error, e.g. they cancelled
+  if (searchParams.get("error")) {
+    return NextResponse.redirect(new URL("/login?error=oauth", origin));
+  }
+
   const supabase = await createClient();
 
   if (code) {
