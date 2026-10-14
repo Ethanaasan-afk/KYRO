@@ -152,7 +152,7 @@
   declare
     v_user_id uuid := auth.uid();
     v_org uuid := public.current_org_id();
-    v_prefix text := coalesce(nullif(payload->>'prefix', ''), 'AB');
+    v_prefix text := coalesce(nullif(payload->>'prefix', ''), 'KY');
     v_customer_id uuid;
     v_invoice_date date;
     v_notes text;

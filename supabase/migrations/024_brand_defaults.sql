@@ -2,19 +2,19 @@
   -- Existing orgs keep their own invoice_prefix; brand_name updated only if still the old product default.
 
   alter table public.organizations
-    alter column invoice_prefix set default 'AB';
+    alter column invoice_prefix set default 'KY';
 
   update public.organizations
-  set brand_name = 'AasanBill'
+  set brand_name = 'KYRO'
   where brand_name = 'AURA Clean';
 
   -- company_settings may still exist in older installs
   do $$
   begin
     if to_regclass('public.company_settings') is not null then
-      execute $q$alter table public.company_settings alter column brand_name set default 'AasanBill'$q$;
-      execute $q$alter table public.company_settings alter column invoice_prefix set default 'AB'$q$;
-      execute $q$update public.company_settings set brand_name = 'AasanBill' where brand_name = 'AURA Clean'$q$;
+      execute $q$alter table public.company_settings alter column brand_name set default 'KYRO'$q$;
+      execute $q$alter table public.company_settings alter column invoice_prefix set default 'KY'$q$;
+      execute $q$update public.company_settings set brand_name = 'KYRO' where brand_name = 'AURA Clean'$q$;
     end if;
   end $$;
 

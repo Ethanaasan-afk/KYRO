@@ -72,7 +72,7 @@ async function main() {
     bank_account: "",
     bank_swift: "",
     bank_branch: "",
-    invoice_prefix: "NF",
+    invoice_prefix: "KY",
     updated_at: new Date().toISOString(),
   };
 
@@ -81,7 +81,7 @@ async function main() {
 
   const invoice = {
     id: "inv",
-    invoice_number: "NF-EMPTY-001",
+    invoice_number: "KY-EMPTY-001",
     customer_id: "c1",
     invoice_date: "2026-08-04",
     subtotal: 100,

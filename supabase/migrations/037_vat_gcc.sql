@@ -26,7 +26,7 @@ alter table public.organizations alter column country set not null;
 alter table public.organizations alter column currency set default 'AED';
 alter table public.organizations alter column currency set not null;
 alter table public.organizations alter column state set default '';
-alter table public.organizations alter column invoice_prefix set default 'NF';
+alter table public.organizations alter column invoice_prefix set default 'KY';
 
 comment on column public.organizations.country is 'ISO 3166-1 alpha-2 country of the VAT registration (AE first).';
 comment on column public.organizations.currency is 'ISO 4217 invoicing currency, e.g. AED.';
@@ -208,7 +208,7 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_org uuid := public.current_org_id();
-  v_prefix text := coalesce(nullif(payload->>'prefix', ''), 'NF');
+  v_prefix text := coalesce(nullif(payload->>'prefix', ''), 'KY');
   v_currency text;
   v_customer_id uuid;
   v_invoice_date date;

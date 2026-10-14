@@ -27,10 +27,10 @@ function doc(partial: Partial<VatReportDoc> & Pick<VatReportDoc, "number">): Vat
     currency: "AED",
     businessEmirate: "Dubai",
     sales: [
-      doc({ number: "NF-1" }),
-      doc({ number: "NF-2", party: { name: "AD Co", state: "Abu Dhabi" } }),
+      doc({ number: "KY-1" }),
+      doc({ number: "KY-2", party: { name: "AD Co", state: "Abu Dhabi" } }),
       doc({
-        number: "NF-3",
+        number: "KY-3",
         subtotal: 300,
         total_vat: 10,
         grand_total: 310,
@@ -40,7 +40,7 @@ function doc(partial: Partial<VatReportDoc> & Pick<VatReportDoc, "number">): Vat
           { taxable_value: 40, vat_amount: 0, vat_rate: 0, vat_category: "exempt" },
         ],
       }),
-      doc({ number: "NF-4", status: "cancelled" }),
+      doc({ number: "KY-4", status: "cancelled" }),
       doc({ number: "AB/2025-26/0001", currency: "INR" }),
     ],
     creditNotes: [
@@ -82,7 +82,7 @@ function doc(partial: Partial<VatReportDoc> & Pick<VatReportDoc, "number">): Vat
   const s = buildVat201({
     currency: "AED",
     businessEmirate: "Sharjah",
-    sales: [doc({ number: "NF-9", party: { name: "Walk-in", state: "" } })],
+    sales: [doc({ number: "KY-9", party: { name: "Walk-in", state: "" } })],
   });
   assert(s.emirates.find((r) => r.emirate === "Sharjah")!.vat === 50, "fallback emirate");
 }
@@ -90,7 +90,7 @@ function doc(partial: Partial<VatReportDoc> & Pick<VatReportDoc, "number">): Vat
 // Register excludes cancelled + other currency
 {
   const rows = registerRows(
-    [doc({ number: "NF-1" }), doc({ number: "NF-2", status: "cancelled" }), doc({ number: "X", currency: "INR" })],
+    [doc({ number: "KY-1" }), doc({ number: "KY-2", status: "cancelled" }), doc({ number: "X", currency: "INR" })],
     "AED"
   );
   assert(rows.length === 1, "register rows");

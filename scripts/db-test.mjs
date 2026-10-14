@@ -126,7 +126,7 @@ const ids = {
   adminB: "00000000-0000-4000-8000-0000000000b1",
 };
 const orgA = await one(`insert into public.organizations (name, slug, brand_name, state, business_type) values ('Org A','org-a','Org A','Dubai','grocery') returning id, invoice_prefix, numbering_period`);
-const orgB = await one(`insert into public.organizations (name, slug, brand_name, state, business_type, invoice_prefix) values ('Org B','org-b','Org B','Dubai','grocery','NF') returning id`);
+const orgB = await one(`insert into public.organizations (name, slug, brand_name, state, business_type, invoice_prefix) values ('Org B','org-b','Org B','Dubai','grocery','OB') returning id`);
 for (const [id, email] of [[ids.adminA, "a@a.test"], [ids.staffA, "s@a.test"], [ids.acctA, "c@a.test"], [ids.adminB, "b@b.test"]]) {
   await db.query(`insert into auth.users (id, email) values ($1, $2)`, [id, email]);
 }
@@ -361,6 +361,18 @@ check((await seeInvoices("aal2")) === before, "after the authenticator code, the
 r = await as("authenticated", ids.staffA, () => attempt(() => db.query(`select full_name from public.users where id=$1`, [ids.staffA])));
 check(r.ok && r.rows.length === 1, "the app can still load the profile to ask for the code");
 await db.query(`delete from auth.mfa_factors where user_id = $1`, [ids.staffA]);
+
+// ---------- old prefix fallback is replaced (045) ----------
+{
+  const def = (await one(`select pg_get_functiondef('public.create_invoice_atomic(jsonb)'::regprocedure) as d`)).d;
+  // Simulate a database created before the rename, then run 045 on it
+  await db.exec(def.replace("'KY')", "'NF')"));
+  await db.exec(fs.readFileSync(path.join(DIR, "045_kyro_prefix_cleanup.sql"), "utf8"));
+  const after = (await one(`select pg_get_functiondef('public.create_invoice_atomic(jsonb)'::regprocedure) as d`)).d;
+  check(!after.includes("'NF'") && after.includes("'KY'"), "045 switches the invoice prefix fallback to KY");
+  r = await asUser(ids.staffA, `select public.create_invoice_atomic($1::jsonb) as r`, [invoicePayload(1, "2026-03-04")]);
+  check(r.ok, `invoices still save after 045 (${r.msg ?? "ok"})`);
+}
 
 // ---------- re-running the latest migrations is safe ----------
 for (const f of numbered.slice(-3)) {
