@@ -20,6 +20,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
+import { useOrganization } from "@/hooks/use-company";
+import { getCountryConfig } from "@/lib/vat/countries";
 
 const statusVariant = {
   issued: "info" as const,
@@ -51,6 +53,8 @@ export default function InvoicesPage() {
   const { isAdmin, user, isReadOnly } = useAuth();
   const { writesBlocked } = useOrgAccess();
   const { data: invoices, isLoading } = useInvoices();
+  const { data: org } = useOrganization();
+  const taxSystem = getCountryConfig(org?.country).taxSystem;
   const { updateStatus } = useInvoiceMutations();
   const { toast } = useToast();
   const router = useRouter();
@@ -102,7 +106,13 @@ export default function InvoicesPage() {
       <PageHeader
         eyebrow="Billing"
         title="Invoices"
-        description="Tax invoices - standard, reduced, zero-rated and exempt supplies"
+        description={
+          taxSystem === "gst"
+            ? "GST tax invoices - CGST + SGST or IGST worked out for you"
+            : taxSystem === "none"
+              ? "Your invoices, ready to send"
+              : "Tax invoices - standard, reduced, zero-rated and exempt supplies"
+        }
         accent="teal"
         actions={
           <>

@@ -1,6 +1,7 @@
 import { calcInvoiceTotals, calcLineVat } from "@/lib/vat";
 import { amountInWords } from "@/lib/amount-in-words";
-import { COUNTRIES, ENABLED_COUNTRIES, getCountryConfig, isValidTaxId } from "@/lib/vat/countries";
+import { COUNTRIES, ENABLED_COUNTRIES, getCountryConfig, indiaStateFromGstin, indiaStateName, isValidTaxId } from "@/lib/vat/countries";
+import { productTaxLabel, taxChoiceKey, taxChoices } from "@/lib/vat/tax-choices";
 import {
   calcOptionsFor,
   contextForDocument,
@@ -159,6 +160,58 @@ assert(isValidTaxId("", "IN"), "empty is fine (consumer)");
   assert(fields[3] === "2022-04-25T15:30:00Z" && fields[4] === "1000.00" && fields[5] === "150.00", "TLV time, total, VAT");
   const arabic = zatcaQrPayload({ sellerName: "شركة", vatNumber: "300000000000003", timestamp: "2026-01-01T00:00:00Z", total: 1, vatTotal: 0.13 });
   assert(Buffer.from(arabic, "base64")[1] === Buffer.byteLength("شركة"), "Arabic names are measured in bytes");
+}
+
+// ---------- India: states written any way, GSTIN fallback ----------
+{
+  assert(indiaStateName("Gujarat (24)") === "Gujarat" && indiaStateName("24") === "Gujarat" && indiaStateName(" gujarat ") === "Gujarat", "state name forms");
+  assert(indiaStateName("Atlantis") === null, "not a state");
+  assert(indiaStateFromGstin("24ABCDE1234F1Z5") === "Gujarat", "GSTIN state");
+
+  // Saved as "Gujarat (24)" vs customer "Gujarat": same state
+  const labelled = resolveTaxContext({ sellerCountry: "IN", sellerState: "Gujarat (24)", customer: { country: "IN", state: "Gujarat" } });
+  assert(labelled.split === "cgst_sgst", "labelled state still matches");
+
+  // No state saved, but the GSTIN says Gujarat
+  const fromGstin = resolveTaxContext({ sellerCountry: "IN", sellerState: "", sellerTaxId: "24ABCDE1234F1Z5", customer: { country: "IN", state: "Gujarat" } });
+  assert(fromGstin.split === "cgst_sgst" && !fromGstin.sellerStateMissing, "seller state from GSTIN");
+  const otherState = resolveTaxContext({ sellerCountry: "IN", sellerTaxId: "24ABCDE1234F1Z5", customer: { country: "IN", state: "Maharashtra" } });
+  assert(otherState.split === "igst", "GSTIN seller, other-state buyer: IGST");
+
+  // Customer's state from their GSTIN
+  const buyerGstin = resolveTaxContext({ sellerCountry: "IN", sellerState: "Karnataka", customer: { country: "IN", tax_id: "27ABCDE1234F1Z5" } });
+  assert(buyerGstin.split === "igst" && buyerGstin.placeOfSupply === "Maharashtra (27)", "buyer state from GSTIN");
+
+  // Nothing known about the business: local sale, flagged
+  const unknown = resolveTaxContext({ sellerCountry: "IN", customer: { country: "IN", state: "Gujarat" } });
+  assert(unknown.split === "cgst_sgst" && unknown.sellerStateMissing === true, "missing seller state is flagged");
+}
+
+// ---------- product tax choices in each country's words ----------
+{
+  const india = getCountryConfig("IN");
+  const keys = taxChoices(india).map((c) => c.key);
+  assert(keys.includes("standard:18") && keys.includes("standard:3") && keys.includes("zero") && keys.includes("exempt"), "India choices");
+  assert(taxChoices(india).find((c) => c.key === "zero")!.label.includes("Nil-rated"), "India says nil-rated");
+  assert(!taxChoices(india).some((c) => /zero-rated/i.test(c.label)), "India never says zero-rated on products");
+  assert(productTaxLabel({ vat_category: "zero", vat_rate: 0 }, india) === "Nil-rated", "India nil label");
+  assert(taxChoiceKey("standard", 12, india) === "custom", "old 12% slab shows as other rate");
+  const uae = getCountryConfig("AE");
+  assert(taxChoices(uae).find((c) => c.key === "zero")!.label.includes("Zero-rated"), "UAE says zero-rated");
+  assert(taxChoiceKey("standard", 5, uae) === "standard:5", "UAE 5%");
+}
+
+// ---------- India, prices including GST: CGST and SGST stay equal ----------
+{
+  const local = resolveTaxContext({ sellerCountry: "IN", sellerState: "Gujarat", customer: { country: "IN", state: "Gujarat" } });
+  for (const price of [140, 99.99, 1, 43547.6, 777]) {
+    for (const rate of [3, 5, 18, 40]) {
+      const t = calcInvoiceTotals([{ quantity: 1, unitPrice: price, vatRate: rate }], calcOptionsFor(local, true));
+      const l = t.lines[0];
+      assert(l.cgst === l.sgst, `equal halves at ${price} @ ${rate}%: ${l.cgst} vs ${l.sgst}`);
+      assert(t.grandTotal === price, `customer pays the price at ${price} @ ${rate}%: ${t.grandTotal}`);
+    }
+  }
 }
 
 console.log("countries.test.ts: all ok");

@@ -12,7 +12,7 @@ import { useCompanySettings } from "@/hooks/use-company";
 import { DEFAULT_COUNTRY, countryOptions, getCountryConfig } from "@/lib/vat/countries";
 import type { Customer } from "@/lib/types";
 import { customerSchema } from "@/lib/validations";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodFormResolver } from "@/lib/form-resolver";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -46,7 +46,7 @@ export function CustomerFormModal({
     watch,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(customerSchema),
+    resolver: zodFormResolver(customerSchema),
     defaultValues: {
       name: "",
       phone: "",

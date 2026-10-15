@@ -14,6 +14,7 @@ import type {
   VatQuarter,
 } from "@/lib/insights";
 import { formatQty } from "@/lib/units";
+import type { CountryVatConfig } from "@/lib/vat/countries";
 import { cn, formatCurrency, formatDate, getDefaultCurrency } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -400,6 +401,7 @@ export function SalesTrendCard({
   previous,
   summary,
   previousSummary,
+  taxName = "VAT",
 }: {
   range: TrendRange;
   onRange: (r: TrendRange) => void;
@@ -407,6 +409,8 @@ export function SalesTrendCard({
   previous: DayPoint[];
   summary: PeriodSummary;
   previousSummary: PeriodSummary;
+  /** "VAT" or "GST" - the tax this business charges */
+  taxName?: string;
 }) {
   const [compare, setCompare] = useState(true);
   const data = useMemo(
@@ -417,7 +421,7 @@ export function SalesTrendCard({
     { label: "Revenue", value: moneyRound(summary.revenue), delta: pct(summary.revenue, previousSummary.revenue) },
     { label: "Invoices", value: String(summary.count), delta: pct(summary.count, previousSummary.count) },
     { label: "Average bill", value: moneyRound(summary.average), delta: pct(summary.average, previousSummary.average) },
-    { label: "VAT charged", value: moneyRound(summary.vat), delta: pct(summary.vat, previousSummary.vat) },
+    { label: `${taxName} charged`, value: moneyRound(summary.vat), delta: pct(summary.vat, previousSummary.vat) },
   ];
   return (
     <Card
@@ -719,18 +723,22 @@ export function TopCustomersCard({ items }: { items: Ranked[] }) {
   );
 }
 
-// ---------- VAT ----------
+// ---------- VAT / GST ----------
 
-export function VatCard({ vat }: { vat: VatQuarter }) {
+export function VatCard({ vat, country }: { vat: VatQuarter; country: CountryVatConfig }) {
   const refund = vat.net < 0;
+  const tax = country.taxName;
+  const gst = country.taxSystem === "gst";
+  // India: input tax credit is carried forward, not refunded
+  const returnShort = country.code === "AE" ? "VAT 201" : gst ? "GSTR-3B" : "VAT return";
   return (
     <Card
-      title={refund ? "VAT refund expected" : "VAT to set aside"}
+      title={refund ? (gst ? "GST credit to carry forward" : `${tax} refund expected`) : `${tax} to set aside`}
       icon={Landmark}
       delay={0.34}
       action={
         <Link href="/reports" className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline">
-          VAT 201 <ArrowRight className="h-3 w-3" />
+          {returnShort} <ArrowRight className="h-3 w-3" />
         </Link>
       }
     >
@@ -742,11 +750,11 @@ export function VatCard({ vat }: { vat: VatQuarter }) {
       />
       <div className="mt-3 space-y-1.5 text-sm">
         <div className="flex justify-between">
-          <span className="text-slate">VAT on sales</span>
+          <span className="text-slate">{tax} on sales</span>
           <span className="font-mono text-ink">{money(vat.outputVat)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate">VAT on purchases</span>
+          <span className="text-slate">{gst ? "Input tax credit (purchases)" : `${tax} on purchases`}</span>
           <span className="font-mono text-sage">− {money(vat.inputVat)}</span>
         </div>
       </div>
@@ -754,7 +762,9 @@ export function VatCard({ vat }: { vat: VatQuarter }) {
         <CircleDollarSign className="h-4 w-4 shrink-0 text-primary" />
         <span>
           {refund
-            ? "You've paid more VAT on purchases than you charged so far - this quarter may end in a refund."
+            ? gst
+              ? "You've paid more GST on purchases than you charged so far - the extra credit carries forward to next month."
+              : `You've paid more ${tax} on purchases than you charged so far - this period may end in a refund.`
             : "Keep this aside so filing day is stress-free."}{" "}
           Return due <strong>{formatDate(vat.dueDate)}</strong>
           {vat.daysToDue > 0 ? ` (in ${vat.daysToDue} days)` : ""}.

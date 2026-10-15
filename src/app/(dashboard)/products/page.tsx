@@ -1,7 +1,9 @@
 "use client";
 
 import { useAuth } from "@/components/auth-provider";
-import { VAT_CATEGORY_LABELS } from "@/lib/vat";
+import { productTaxLabel } from "@/lib/vat/tax-choices";
+import { getCountryConfig } from "@/lib/vat/countries";
+import { useOrganization } from "@/hooks/use-company";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -39,6 +41,8 @@ export default function ProductsPage() {
   const { labels, isHotel, isJewellery } = useBusinessType();
   const { tree } = useCategoryTree();
   const { data: products, isLoading } = useProducts();
+  const { data: org } = useOrganization();
+  const country = getCountryConfig(org?.country);
   const { data: metalRates } = useMetalRates();
   const { data: liveMarket } = useLiveMarketRates(isJewellery);
   const { remove } = useProductMutations();
@@ -131,7 +135,7 @@ export default function ProductsPage() {
       <PageHeader
         eyebrow="Catalog"
         title={labels.productPlural}
-        description="Catalog, pricing & VAT rates"
+        description={`Catalog, pricing & ${country.taxName} rates`}
         accent="sun"
         actions={
           writesBlocked ? undefined : (
@@ -261,7 +265,7 @@ export default function ProductsPage() {
                 <th>Item code</th>
                 <th className="num">{isJewellery ? "Est. @ today" : "Price"}</th>
                 <th className="num">Margin %</th>
-                <th className="num">VAT</th>
+                <th className="num">{country.taxName}</th>
                 <th className="num">Stock</th>
                 <th>Status</th>
                 <th></th>
@@ -341,7 +345,7 @@ export default function ProductsPage() {
                       )}
                     </td>
                     <td className="num">
-                      {p.vat_category === "standard" ? `${p.vat_rate}%` : VAT_CATEGORY_LABELS[p.vat_category]}
+                      {productTaxLabel(p, country)}
                     </td>
                     <td
                       className={`num num-stock ${

@@ -3,7 +3,7 @@ import { ensureFreshLiveRates } from "@/lib/live-metal-rates-server";
 import { NextResponse } from "next/server";
 
 /** Returns latest cached live rates; refreshes from Metals.Dev if older than 10 minutes. */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const {
@@ -16,7 +16,8 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await ensureFreshLiveRates();
+  const currency = new URL(request.url).searchParams.get("currency");
+  const result = await ensureFreshLiveRates(currency ?? undefined);
   if (result.unavailable && !result.rows.length) {
     return NextResponse.json({
       ok: false,

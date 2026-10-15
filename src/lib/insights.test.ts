@@ -10,8 +10,7 @@ import {
   topCustomers,
   vatThisQuarter,
 } from "@/lib/insights";
-import { formatQty, getUnit, roundQty, unitAllowsDecimals, unitChoices, unitStep } from "@/lib/units";
-import { getBusinessTypeConfig } from "@/lib/business-types";
+import { formatQty, getUnit, roundQty, unitAllowsDecimals, unitStep } from "@/lib/units";
 import { buildCategoryTree, categoryPath, subcategoryNames } from "@/lib/categories";
 import { fillTemplate, isValidEmail, parseEmailList } from "@/lib/email/templates";
 import type { Invoice, Purchase } from "@/lib/types";
@@ -147,6 +146,11 @@ const invoices = [
   assert(Math.abs(vat.outputVat - (5 + 10 + 15)) < 0.001, `output vat ${vat.outputVat}`);
   assert(vat.inputVat === 7.5 && Math.abs(vat.net - 22.5) < 0.001, "net vat");
   assert(vat.dueDate === "2027-01-28", `due ${vat.dueDate}`);
+
+  // India: GSTR-3B is monthly, due on the 20th of the next month
+  const gst = vatThisQuarter(invoices, purchases, "AED", TODAY, "IN");
+  assert(gst.from === "2026-10-01" && gst.to === "2026-10-31", "India: one month");
+  assert(gst.dueDate === "2026-11-20", `India due ${gst.dueDate}`);
 }
 
 console.log("insights, units, categories and email: all checks passed");

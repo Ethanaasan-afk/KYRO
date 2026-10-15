@@ -57,7 +57,7 @@ export default function BusinessDataPage() {
       <PageHeader
         eyebrow="Internal"
         title="Business Data"
-        description="Owner-only cost & expense ledger - never used for invoices or VAT"
+        description="Owner-only cost & expense ledger - never used for invoices or tax returns"
         accent="tangerine"
       />
 

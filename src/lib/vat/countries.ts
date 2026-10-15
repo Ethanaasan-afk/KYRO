@@ -591,6 +591,24 @@ export function indiaStateForCode(code: string): string | null {
   return INDIA_STATES.find((s) => s.code === code)?.name ?? null;
 }
 
+/**
+ * India: the canonical state name for however it was written - "Gujarat",
+ * "gujarat", "Gujarat (24)" or the code "24". Null when it is not a state.
+ */
+export function indiaStateName(value: string | null | undefined): string | null {
+  const v = (value ?? "").trim();
+  if (!v) return null;
+  const code = /^\d{2}$/.test(v) ? v : /\((\d{2})\)\s*$/.exec(v)?.[1];
+  if (code) return indiaStateForCode(code);
+  return INDIA_STATES.find((s) => s.name.toLowerCase() === v.toLowerCase())?.name ?? null;
+}
+
+/** India: the state a GSTIN was issued in (its first two digits). */
+export function indiaStateFromGstin(gstin: string | null | undefined): string | null {
+  const v = (gstin ?? "").replace(/\s+/g, "").toUpperCase();
+  return /^\d{2}[A-Z]/.test(v) ? indiaStateForCode(v.slice(0, 2)) : null;
+}
+
 /** India: "Karnataka (29)" for the place of supply line. */
 export function indiaStateLabel(name: string | null | undefined): string {
   const hit = INDIA_STATES.find((s) => s.name.toLowerCase() === (name ?? "").trim().toLowerCase());

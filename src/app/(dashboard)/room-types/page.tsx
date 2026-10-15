@@ -21,6 +21,8 @@ import { formatCurrency } from "@/lib/utils";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useOrganization } from "@/hooks/use-company";
+import { getCountryConfig } from "@/lib/vat/countries";
 
 const emptyType = {
   name: "",
@@ -38,6 +40,7 @@ const emptyRoom = {
   status: "available" as RoomStatus,
 };
 
+
 export default function RoomTypesPage() {
   const { isHotel, isLoading: btLoading } = useBusinessType();
   const { data: types, isLoading } = useRoomTypes();
@@ -45,6 +48,8 @@ export default function RoomTypesPage() {
   const { upsert: upsertType, remove: removeType } = useRoomTypeMutations();
   const { upsert: upsertRoom, remove: removeRoom } = useHotelRoomMutations();
   const { toast } = useToast();
+  const { data: org } = useOrganization();
+  const taxName = getCountryConfig(org?.country).taxName;
 
   const [typeOpen, setTypeOpen] = useState(false);
   const [editingType, setEditingType] = useState<RoomType | null>(null);
@@ -262,7 +267,7 @@ export default function RoomTypesPage() {
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Input
-              label="Rate / night (excl. VAT)"
+              label={`Rate / night (excl. ${taxName})`}
               type="number"
               min={0}
               step="0.01"
@@ -270,7 +275,7 @@ export default function RoomTypesPage() {
               onChange={(e) => setTypeForm((f) => ({ ...f, base_price: e.target.value }))}
             />
             <Input
-              label="VAT %"
+              label={`${taxName} %`}
               type="number"
               min={0}
               step="0.01"

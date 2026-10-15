@@ -132,8 +132,15 @@ export function calcLineVat(line: LineInput, opts: CalcOptions = {}): LineVatRes
   let lineTotal: number;
 
   if (opts.pricesIncludeVat) {
-    taxableValue = round(gross / (1 + vatRate / 100));
-    vatAmount = round(gross - taxableValue);
+    if (split === "cgst_sgst") {
+      // India: equal CGST and SGST halves, and the customer still pays exactly the price
+      const base = round(gross / (1 + vatRate / 100));
+      vatAmount = round(round((base * vatRate) / 200) * 2);
+      taxableValue = round(gross - vatAmount);
+    } else {
+      taxableValue = round(gross / (1 + vatRate / 100));
+      vatAmount = round(gross - taxableValue);
+    }
     lineTotal = gross;
   } else {
     taxableValue = gross;

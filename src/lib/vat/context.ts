@@ -11,7 +11,9 @@ import {
 import { currencyDecimals, roundTo } from "@/lib/utils";
 import {
   getCountryConfig,
+  indiaStateFromGstin,
   indiaStateLabel,
+  indiaStateName,
   isIndiaUnionTerritory,
   type CountryVatConfig,
 } from "@/lib/vat/countries";
@@ -32,6 +34,11 @@ export interface TaxContext {
   /** Printed "Place of supply" (India: "Karnataka (29)") */
   placeOfSupply: string;
   taxFree: boolean;
+  /**
+   * India only: the business has no state (and no GSTIN to read it from), so
+   * CGST + SGST is assumed. The invoice form asks the owner to add it.
+   */
+  sellerStateMissing?: boolean;
 }
 
 export interface TaxParty {
@@ -68,6 +75,8 @@ export function availableTreatments(country: CountryVatConfig): TaxTreatment[] {
 export function resolveTaxContext(input: {
   sellerCountry: string | null | undefined;
   sellerState?: string | null;
+  /** India: the GSTIN's first two digits are the state, used when no state is saved */
+  sellerTaxId?: string | null;
   currency?: string | null;
   customer?: TaxParty | null;
   /** Explicit choice; otherwise suggested from the customer */
@@ -84,12 +93,25 @@ export function resolveTaxContext(input: {
   const foreign = customerCountry !== country.code;
 
   let split: TaxSplit = "single";
-  if (country.taxSystem === "gst") {
-    // Inside the seller's state: CGST + SGST. Another state, abroad or no state given
-    // for a foreign buyer: IGST. A local customer with no state is treated as local.
-    const buyerState = input.customer?.state;
+  let sellerStateMissing = false;
+  // India: states may be saved as "Gujarat", "Gujarat (24)" or "24", or only be
+  // known from a GSTIN - compare the real state either way.
+  const gst = country.taxSystem === "gst";
+  const sellerState = gst
+    ? indiaStateName(input.sellerState) ?? indiaStateFromGstin(input.sellerTaxId)
+    : input.sellerState?.trim() || null;
+  const buyerState = gst
+    ? indiaStateName(input.customer?.state) ??
+      indiaStateFromGstin(input.customer?.tax_id) ??
+      (input.customer?.state?.trim() || null)
+    : input.customer?.state?.trim() || null;
+  if (gst) {
+    // Inside the seller's state: CGST + SGST. Another state or abroad: IGST.
+    // A customer with no state is a local walk-in. With no state for the business
+    // we cannot tell, so assume a local sale and ask the owner to add it.
+    sellerStateMissing = !foreign && !sellerState;
     split =
-      !foreign && (!buyerState?.trim() || sameRegion(buyerState, input.sellerState))
+      !foreign && (!buyerState || !sellerState || sameRegion(buyerState, sellerState))
         ? "cgst_sgst"
         : "igst";
     if (treatment !== "domestic") split = "igst";
@@ -101,7 +123,7 @@ export function resolveTaxContext(input: {
       ? getCountryConfig(customerCountry).name
       : customerCountry;
   } else {
-    const region = input.customer?.state?.trim() || input.sellerState?.trim() || "";
+    const region = buyerState || sellerState || "";
     placeOfSupply =
       country.taxSystem === "gst" ? indiaStateLabel(region) || country.name : region || country.name;
   }
@@ -114,6 +136,7 @@ export function resolveTaxContext(input: {
     split,
     placeOfSupply,
     taxFree: country.taxSystem === "none",
+    sellerStateMissing,
   };
 }
 
@@ -180,7 +203,7 @@ export function contextForDocument(
     tax_split?: string | null;
     place_of_supply?: string | null;
   },
-  org: { country?: string | null; state?: string | null },
+  org: { country?: string | null; state?: string | null; tax_id?: string | null },
   customer?: TaxParty | null
 ): TaxContext {
   if (doc.tax_country) {
@@ -199,6 +222,7 @@ export function contextForDocument(
   const ctx = resolveTaxContext({
     sellerCountry: org.country,
     sellerState: org.state,
+    sellerTaxId: org.tax_id,
     currency: doc.currency,
     customer,
     treatment: "domestic",

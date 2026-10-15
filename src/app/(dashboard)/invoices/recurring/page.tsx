@@ -8,6 +8,7 @@ import { EmptyState, LoadingBlock, PageHeader } from "@/components/ui/page-heade
 import { useToast } from "@/components/ui/toast";
 import { useDueRecurring, useRecurringMutations } from "@/hooks/use-recurring";
 import { useCompanySettings } from "@/hooks/use-company";
+import { getCountryConfig } from "@/lib/vat/countries";
 import { frequencyLabel, recurringTotal } from "@/lib/recurring";
 import type { RecurringInvoice } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -23,6 +24,7 @@ export default function RecurringInvoicesPage() {
   const { toast } = useToast();
   const [deleting, setDeleting] = useState<RecurringInvoice | null>(null);
   const currency = company?.currency ?? "AED";
+  const taxName = getCountryConfig(company?.country).taxName;
 
   const createDue = () => {
     runDue.mutate(
@@ -90,7 +92,7 @@ export default function RecurringInvoicesPage() {
                 <th>Customer</th>
                 <th>Repeats</th>
                 <th>Next invoice</th>
-                <th className="text-right">Amount (excl. VAT)</th>
+                <th className="text-right">Amount (excl. {taxName})</th>
                 <th>Status</th>
                 {!isReadOnly && <th className="text-right">Actions</th>}
               </tr>

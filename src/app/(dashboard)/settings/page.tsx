@@ -19,7 +19,7 @@ import { DEFAULT_COUNTRY, countryOptions, getCountryConfig } from "@/lib/vat/cou
 import { ensureTaxSchema } from "@/lib/vat/schema";
 import { isDemoMode } from "@/lib/demo/mode";
 import { companySettingsSchema } from "@/lib/validations";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodFormResolver } from "@/lib/form-resolver";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -39,7 +39,7 @@ export default function SettingsPage() {
     setValue,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(companySettingsSchema),
+    resolver: zodFormResolver(companySettingsSchema),
   });
 
   const watchedType = watch("business_type");
@@ -202,7 +202,9 @@ export default function SettingsPage() {
                 <span className="font-medium text-ink">My prices include {taxName}</span>
                 <span className="block text-xs text-slate">
                   Default for new invoices. Turn on if your shelf/catalog prices already include{" "}
-                  {taxName} (common in retail). You can still change it on each invoice.
+                  {taxName} (common in retail): a 100 price then stays 100 for the customer, with the{" "}
+                  {taxName} worked out inside it. Off: {taxName} is added on top (100 becomes 105 at 5%,
+                  118 at 18%). You can still change it on each invoice.
                 </span>
               </span>
             </label>

@@ -7,7 +7,7 @@ import {
 import { NextResponse } from "next/server";
 import { memoryLimit, tooManyRequests } from "@/lib/security/rate-limit";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const {
@@ -20,10 +20,11 @@ export async function POST() {
     const limited = memoryLimit(`metals:user:${user.id}`, 6, 10 * 60 * 1000);
     if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-    const result = await refreshLiveMetalRates();
+    const currency = new URL(request.url).searchParams.get("currency") ?? undefined;
+    const result = await refreshLiveMetalRates(currency);
     try {
-      await backfillLiveRateHistory(7);
-      await ensureDiamondIndexFromHistory(7);
+      await backfillLiveRateHistory(7, currency);
+      await ensureDiamondIndexFromHistory(7, currency);
     } catch {
       /* trend backfill is best-effort */
     }

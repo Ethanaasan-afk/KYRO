@@ -7,6 +7,8 @@ import { useToast } from "@/components/ui/toast";
 import { LiveMarketReferencePanel } from "@/components/metal-rates/live-market-reference-panel";
 import { useBusinessType } from "@/hooks/use-business-type";
 import { useLiveMarketRates } from "@/hooks/use-live-market-rates";
+import { useOrganization } from "@/hooks/use-company";
+import { normalizeLiveCurrency } from "@/lib/live-metal-rates";
 import {
   findLatestRate,
   latestRatesMap,
@@ -44,10 +46,14 @@ export default function MetalRatesPage() {
   const [drafts, setDrafts] = useState<Record<DraftKey, string>>({} as Record<DraftKey, string>);
   const [saving, setSaving] = useState(false);
 
+  const { data: org } = useOrganization();
+  const orgCurrency = normalizeLiveCurrency(org?.currency);
+  const [liveCurrency, setLiveCurrency] = useState<string | null>(null);
+  const shownCurrency = liveCurrency ?? orgCurrency;
   const {
     data: liveMarket,
     isLoading: liveLoading,
-  } = useLiveMarketRates(isJewellery, 30_000);
+  } = useLiveMarketRates(isJewellery, 30_000, liveCurrency ?? undefined);
   const liveRates = liveMarket?.rates ?? [];
   const liveHistory = liveMarket?.history ?? [];
   const liveUnavailable = liveMarket?.unavailable ?? null;
@@ -136,6 +142,9 @@ export default function MetalRatesPage() {
         unavailable={liveUnavailable}
         loading={liveLoading}
         onUseRate={onUseLiveRate}
+        currency={shownCurrency}
+        orgCurrency={orgCurrency}
+        onCurrencyChange={(code) => setLiveCurrency(code === orgCurrency ? null : code)}
       />
 
       <section className="rounded-[14px] border border-border bg-surface p-5 shadow-card">

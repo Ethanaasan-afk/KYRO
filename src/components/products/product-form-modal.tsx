@@ -7,7 +7,7 @@ import { CategoryFields } from "@/components/products/category-fields";
 import { Select } from "@/components/ui/select";
 import { PACK_SIZES } from "@/lib/constants";
 import { useCompanySettings } from "@/hooks/use-company";
-import { VAT_CATEGORIES, VAT_CATEGORY_LABELS } from "@/lib/vat";
+import { CUSTOM_TAX_CHOICE, taxChoiceKey, taxChoices } from "@/lib/vat/tax-choices";
 import { getCountryConfig } from "@/lib/vat/countries";
 import {
   categoryOptionsForBusinessType,
@@ -36,7 +36,7 @@ import { useBusinessType } from "@/hooks/use-business-type";
 import { useLiveMarketRates } from "@/hooks/use-live-market-rates";
 import { findLatestRate, useMetalRates } from "@/hooks/use-metal-rates";
 import { useToast } from "@/components/ui/toast";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodFormResolver } from "@/lib/form-resolver";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -149,7 +149,7 @@ export function ProductFormModal({
     watch,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodFormResolver(schema),
     defaultValues: emptyDefaults,
   });
 
@@ -222,6 +222,7 @@ export function ProductFormModal({
       }
     }
     setCustomPack(false);
+    setCustomTax(false);
   }, [product, open, reset, emptyDefaults, isJewellery]);
 
   const name = watch("name");
@@ -242,6 +243,10 @@ export function ProductFormModal({
   const basePrice = Number(watch("base_price")) || 0;
   const vatCategory = watch("vat_category");
   const vatRate = vatCategory === "standard" ? Number(watch("vat_rate")) || 0 : 0;
+  // One list of this country's rates; "Other rate" opens a number box for anything else
+  const choices = useMemo(() => taxChoices(country), [country]);
+  const [customTax, setCustomTax] = useState(false);
+  const taxKey = customTax ? CUSTOM_TAX_CHOICE : taxChoiceKey(vatCategory, watch("vat_rate"), country);
   const mfgCostRaw = watch("manufacturing_cost");
   const mfgCost =
     mfgCostRaw == null || (typeof mfgCostRaw === "string" && mfgCostRaw === "")
@@ -576,55 +581,40 @@ export function ProductFormModal({
               if (taxFree) return null;
               return (
                 <div key={field} className="contents">
+                  <input type="hidden" {...register("vat_category")} />
                   <Select
-                    label={`${taxName} treatment`}
+                    label={`${taxName} rate`}
                     helpKey="vat_category"
-                    options={VAT_CATEGORIES.map((c) => ({ value: c, label: VAT_CATEGORY_LABELS[c] }))}
-                    error={errors.vat_category?.message}
-                    {...register("vat_category", {
-                      onChange: (e) =>
-                        setValue(
-                          "vat_rate",
-                          e.target.value === "standard"
-                            ? isJewellery
-                              ? jewelleryRate
-                              : country.standardRate
-                            : 0
-                        ),
-                    })}
+                    help={isJewellery && country.code === "AE" ? JEWELLERY_VAT_HELP : undefined}
+                    value={taxKey}
+                    options={[
+                      ...choices.map((c) => ({ value: c.key, label: c.label })),
+                      { value: CUSTOM_TAX_CHOICE, label: "Other rate…" },
+                    ]}
+                    error={errors.vat_category?.message ?? (taxKey !== CUSTOM_TAX_CHOICE ? errors.vat_rate?.message : undefined)}
+                    onChange={(e) => {
+                      const key = e.target.value;
+                      if (key === CUSTOM_TAX_CHOICE) {
+                        setCustomTax(true);
+                        setValue("vat_category", "standard", { shouldDirty: true });
+                        return;
+                      }
+                      const c = choices.find((x) => x.key === key);
+                      if (!c) return;
+                      setCustomTax(false);
+                      setValue("vat_category", c.category, { shouldDirty: true, shouldValidate: true });
+                      setValue("vat_rate", c.rate, { shouldDirty: true, shouldValidate: true });
+                    }}
                   />
-                  {vatCategory === "standard" ? (
-                    <div>
-                      <Input
-                        label={`${taxName} rate %`}
-                        helpKey="vat_rate"
-                        help={isJewellery && country.code === "AE" ? JEWELLERY_VAT_HELP : undefined}
-                        type="number"
-                        step="0.01"
-                        error={errors.vat_rate?.message}
-                        {...register("vat_rate")}
-                      />
-                      {/* Quick-pick the rates used in this country */}
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {country.rates
-                          .filter((r) => r.rate > 0)
-                          .map((r) => (
-                            <button
-                              key={r.rate}
-                              type="button"
-                              title={r.label}
-                              onClick={() => setValue("vat_rate", r.rate, { shouldDirty: true })}
-                              className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                                Number(watch("vat_rate")) === r.rate
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "border-border text-slate hover:border-primary/40"
-                              }`}
-                            >
-                              {r.rate}%
-                            </button>
-                          ))}
-                      </div>
-                    </div>
+                  {taxKey === CUSTOM_TAX_CHOICE ? (
+                    <Input
+                      label={`${taxName} rate %`}
+                      helpKey="vat_rate"
+                      type="number"
+                      step="0.01"
+                      error={errors.vat_rate?.message}
+                      {...register("vat_rate")}
+                    />
                   ) : null}
                   <p className="self-end font-mono text-xs text-slate sm:pb-2">
                     Final price with {taxName}:{" "}

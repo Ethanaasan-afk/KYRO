@@ -289,21 +289,48 @@ export type VatQuarter = {
   outputVat: number;
   inputVat: number;
   net: number;
-  /** UAE returns are due 28 days after the period ends */
+  /** When the return for this period is due (country rules, see taxPeriodRules) */
   dueDate: string;
   daysToDue: number;
 };
+
+/**
+ * The current tax period and when its return is due.
+ *  - India: GSTR-3B is monthly, due on the 20th of the next month
+ *  - Saudi Arabia: quarterly, due at the end of the month after the quarter
+ *  - UK: quarterly, due one month and 7 days after the quarter
+ *  - UAE and others: quarterly, due 28 days after the quarter
+ */
+function taxPeriodRules(today: Date, countryCode: string) {
+  const y = today.getFullYear();
+  if (countryCode === "IN") {
+    const start = new Date(y, today.getMonth(), 1);
+    const end = new Date(y, today.getMonth() + 1, 0);
+    const due = new Date(y, today.getMonth() + 1, 20);
+    const label = start.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    return { start, end, due, label };
+  }
+  const q = Math.floor(today.getMonth() / 3);
+  const start = new Date(y, q * 3, 1);
+  const end = new Date(y, q * 3 + 3, 0);
+  const due =
+    countryCode === "SA"
+      ? new Date(y, q * 3 + 4, 0)
+      : countryCode === "GB"
+        ? addDays(new Date(y, q * 3 + 4, 0), 7)
+        : addDays(end, 28);
+  const months = [start, addDays(start, 32), end].map((d) => d.toLocaleDateString("en-GB", { month: "short" }));
+  return { start, end, due, label: `Q${q + 1} ${y} (${months[0]}-${months[2]})` };
+}
 
 export function vatThisQuarter(
   invoices: Invoice[],
   purchases: Purchase[],
   currency: string,
-  today = new Date()
+  today = new Date(),
+  countryCode = "AE"
 ): VatQuarter {
-  const q = Math.floor(today.getMonth() / 3);
-  const start = new Date(today.getFullYear(), q * 3, 1);
-  const end = new Date(today.getFullYear(), q * 3 + 3, 0);
-  const due = addDays(end, 28);
+  const { start, end, due, label } = taxPeriodRules(today, countryCode);
   const from = dayKey(start);
   const to = dayKey(end);
   let outputVat = 0;
@@ -316,9 +343,8 @@ export function vatThisQuarter(
     if (p.status === "cancelled" || p.currency !== currency) continue;
     if (p.purchase_date >= from && p.purchase_date <= to) inputVat += money(p.total_vat);
   }
-  const months = [start, addDays(start, 32), end].map((d) => d.toLocaleDateString("en-GB", { month: "short" }));
   return {
-    label: `Q${q + 1} ${today.getFullYear()} (${months[0]}-${months[2]})`,
+    label,
     from,
     to,
     outputVat,

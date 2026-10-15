@@ -1,7 +1,9 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { VAT_CATEGORY_LABELS } from "@/lib/vat";
+import { productTaxLabel } from "@/lib/vat/tax-choices";
+import { getCountryConfig } from "@/lib/vat/countries";
+import { useOrganization } from "@/hooks/use-company";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingBlock, PageHeader } from "@/components/ui/page-header";
 import { usePriceHistory, useProduct } from "@/hooks/use-products";
@@ -18,6 +20,8 @@ export default function ProductDetailPage() {
   const { data: product, isLoading } = useProduct(id);
   const { data: history } = usePriceHistory(id);
   const { data: movements } = useStockMovements(id);
+  const { data: org } = useOrganization();
+  const country = getCountryConfig(org?.country);
 
   if (isLoading) return <LoadingBlock />;
   if (!product) return <EmptyState title="Product not found" />;
@@ -45,8 +49,8 @@ export default function ProductDetailPage() {
         <Stat label="SKU" value={product.sku} mono />
         <Stat label="Base price" value={formatCurrency(product.base_price)} />
         <Stat
-          label="VAT"
-          value={product.vat_category === "standard" ? `${product.vat_rate}%` : VAT_CATEGORY_LABELS[product.vat_category]}
+          label={country.taxName}
+          value={productTaxLabel(product, country)}
         />
         <Stat
           label="Current stock"

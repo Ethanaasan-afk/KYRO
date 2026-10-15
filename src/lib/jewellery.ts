@@ -58,6 +58,14 @@ export const METAL_TYPE_OPTIONS = [
 
 export type RateSource = "live_metal_rates" | "metal_rates" | "manual";
 
+/** Plain words for where a line's metal rate came from (shop screens only, never on the invoice). */
+export function rateSourceLabel(source: string | null | undefined): string {
+  if (source === "live_metal_rates") return "live market rate";
+  if (source === "metal_rates") return "today's shop rate";
+  if (source === "manual") return "typed by hand";
+  return "";
+}
+
 export function puritiesForMetal(metal: MetalType | string | null | undefined): readonly string[] {
   if (metal === "silver") return SILVER_PURITIES;
   if (metal === "platinum" || metal === "palladium") return ["999"] as const;

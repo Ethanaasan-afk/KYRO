@@ -39,6 +39,7 @@ import {
   formatPurityLabel,
   isJewelleryProduct,
   jewelleryLineFromProduct,
+  rateSourceLabel,
   resolveJewelleryRatePerGram,
   type RateSource,
 } from "@/lib/jewellery";
@@ -345,11 +346,12 @@ export function InvoiceForm({
       resolveTaxContext({
         sellerCountry: invoice?.tax_country ?? company?.country,
         sellerState: company?.state,
+        sellerTaxId: company?.tax_id,
         currency: docCurrency,
         customer: selectedCustomer,
         treatment: treatmentPick && treatmentPick.customerId === customerId ? treatmentPick.treatment : null,
       }),
-    [invoice?.tax_country, company?.country, company?.state, docCurrency, selectedCustomer, treatmentPick, customerId]
+    [invoice?.tax_country, company?.country, company?.state, company?.tax_id, docCurrency, selectedCustomer, treatmentPick, customerId]
   );
   const taxName = taxCtx.country.taxName;
   const customerTaxIdLabel = getCountryConfig(selectedCustomer?.country || company?.country).taxIdLabel;
@@ -407,20 +409,23 @@ export function InvoiceForm({
       .slice(0, 8);
   }, [customers, customerSearch]);
 
-  const totals = useMemo(() => {
+  // Totals both ways, so the review step can show what the customer pays with each choice
+  const totalsBoth = useMemo(() => {
     if (!selectedCustomer) return null;
     const valid = lines.filter((l) => isValidDraftLine(l, hotelStay));
     if (!valid.length) return null;
-    return calcInvoiceTotals(
-      valid.map((l) => ({
-        quantity: Number(l.quantity),
-        unitPrice: Number(l.unit_price),
-        vatRate: hotelStay ? l.vat_rate : l.product!.vat_rate,
-        vatCategory: hotelStay ? l.vat_category : l.product!.vat_category,
-      })),
-      calcOptionsFor(taxCtx, pricesIncludeVat)
-    );
-  }, [lines, selectedCustomer, hotelStay, pricesIncludeVat, taxCtx]);
+    const inputs = valid.map((l) => ({
+      quantity: Number(l.quantity),
+      unitPrice: Number(l.unit_price),
+      vatRate: hotelStay ? l.vat_rate : l.product!.vat_rate,
+      vatCategory: hotelStay ? l.vat_category : l.product!.vat_category,
+    }));
+    return {
+      onTop: calcInvoiceTotals(inputs, calcOptionsFor(taxCtx, false)),
+      included: calcInvoiceTotals(inputs, calcOptionsFor(taxCtx, true)),
+    };
+  }, [lines, selectedCustomer, hotelStay, taxCtx]);
+  const totals = totalsBoth ? (pricesIncludeVat ? totalsBoth.included : totalsBoth.onTop) : null;
 
   const pickProduct = (key: string, product: Product) => {
     const jewellery = lineFields.jewelleryPricing && isJewelleryProduct(product);
@@ -1337,7 +1342,7 @@ export function InvoiceForm({
                   <div className="sm:col-span-12 rounded-[8px] border border-border/80 bg-surface px-3 py-2 font-mono text-[11px] text-slate">
                     Locked rate {money(line.rate_locked_at_sale ?? line.metal_rate_used ?? 0)}
                     /g
-                    {line.rate_source ? ` · ${line.rate_source}` : ""} ·{" "}
+                    {line.rate_source ? ` · ${rateSourceLabel(line.rate_source)}` : ""} ·{" "}
                     {formatPurityLabel(line.jewellery_purity)} ·{" "}
                     {line.net_weight ?? 0} g ×{" "}
                     {money(line.metal_rate_used ?? 0)}/g = Metal{" "}
@@ -1539,26 +1544,69 @@ export function InvoiceForm({
               {taxCtx.split === "cgst_sgst" ? "CGST + SGST (same state)" : "IGST (another state or abroad)"}
             </p>
           )}
+          {taxCtx.sellerStateMissing && (
+            <p className="mt-2 rounded-[8px] border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-ink">
+              Your business state isn&apos;t saved, so this bill assumes the customer is in the same
+              state (CGST + SGST).{" "}
+              <Link href="/settings" className="font-medium text-primary underline">
+                Add your state in Settings
+              </Link>{" "}
+              so customers from other states get IGST.
+            </p>
+          )}
 
-          {!taxCtx.taxFree && (
-            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[10px] border border-border bg-surface p-3 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
-                checked={pricesIncludeVat}
-                onChange={(e) => setPricesIncludeVat(e.target.checked)}
-              />
-              <span>
-                <span className="inline-flex items-center gap-1 font-medium text-ink">
-                  Prices include {taxName} <HelpTip helpKey="prices_include_vat" />
-                </span>
-                <span className="block text-xs text-slate">
-                  {pricesIncludeVat
-                    ? `${taxName} is worked out from the prices you entered.`
-                    : `${taxName} is added on top of the prices you entered.`}
-                </span>
-              </span>
-            </label>
+          {!taxCtx.taxFree && totalsBoth && totalsBoth.onTop.totalVat > 0 && (
+            <fieldset className="mt-5">
+              <legend className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-ink">
+                Are your prices before or after {taxName}? <HelpTip helpKey="prices_include_vat" />
+              </legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    {
+                      include: false,
+                      title: `Add ${taxName} on top`,
+                      hint: `My prices are before ${taxName}`,
+                      total: totalsBoth?.onTop.grandTotal,
+                    },
+                    {
+                      include: true,
+                      title: `${taxName} already included`,
+                      hint: `My prices already have ${taxName} inside`,
+                      total: totalsBoth?.included.grandTotal,
+                    },
+                  ] as const
+                ).map((opt) => {
+                  const on = pricesIncludeVat === opt.include;
+                  return (
+                    <label
+                      key={String(opt.include)}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-[10px] border p-3 text-sm transition-colors",
+                        on ? "border-primary bg-primary/5" : "border-border bg-surface hover:border-primary/40"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="prices-include-tax"
+                        className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+                        checked={on}
+                        onChange={() => setPricesIncludeVat(opt.include)}
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-medium text-ink">{opt.title}</span>
+                        <span className="block text-xs text-slate">{opt.hint}</span>
+                        {opt.total != null && (
+                          <span className="mt-1 block text-xs text-slate">
+                            Customer pays <span className="font-mono font-semibold text-ink">{money(opt.total)}</span>
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
           )}
 
           {totals ? (

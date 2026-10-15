@@ -128,10 +128,11 @@ export default function PosPage() {
       resolveTaxContext({
         sellerCountry: company?.country,
         sellerState: company?.state,
+        sellerTaxId: company?.tax_id,
         currency,
         customer: customer ?? { country: company?.country ?? "AE", state: company?.state ?? "", tax_id: null },
       }),
-    [company?.country, company?.state, currency, customer]
+    [company?.country, company?.state, company?.tax_id, currency, customer]
   );
   const decimals = taxCtx.decimals;
   const money = useCallback((n: number) => formatCurrency(n, currency), [currency]);
@@ -341,6 +342,7 @@ export default function PosPage() {
       const ctx = resolveTaxContext({
         sellerCountry: company?.country,
         sellerState: company?.state,
+        sellerTaxId: company?.tax_id,
         currency,
         customer: buyer,
       });

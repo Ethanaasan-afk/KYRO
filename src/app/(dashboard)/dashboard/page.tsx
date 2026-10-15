@@ -51,6 +51,7 @@ import { motion } from "motion/react";
 import { CircleAlert, FilePlus2, PackagePlus, RotateCw, UserPlus, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getCountryConfig } from "@/lib/vat/countries";
 
 const GOAL_KEY = "kyro-goal:";
 
@@ -175,7 +176,7 @@ export default function DashboardPage() {
       monthRevenue,
       aging,
       owed,
-      vat: vatThisQuarter(inv, d.purchases, d.org?.currency ?? "AED", now),
+      vat: vatThisQuarter(inv, d.purchases, d.org?.currency ?? "AED", now, getCountryConfig(d.org?.country).code),
       customers90: topCustomers(inv, d.since90, todayKey),
       products90: topProducts(d.sold, names),
       stockAlerts,
@@ -185,7 +186,7 @@ export default function DashboardPage() {
       suggested: suggestGoal(inv, now),
       milestones: milestones(inv, streak, monthRevenue, d.org?.currency ?? "AED"),
     };
-  }, [d.invoices, d.payments, d.products, d.purchases, d.sold, d.emails, d.org?.currency, d.since90, now, todayKey]);
+  }, [d.invoices, d.payments, d.products, d.purchases, d.sold, d.emails, d.org?.currency, d.org?.country, d.since90, now, todayKey]);
 
   const trend = useMemo(() => {
     const inv = d.invoices;
@@ -327,6 +328,7 @@ export default function DashboardPage() {
           previous={trend.previous}
           summary={trend.summary}
           previousSummary={trend.prevSummary}
+          taxName={getCountryConfig(d.org?.country).taxName}
         />
         <MoneyWaitingCard
           total={x.aging.total}
@@ -339,7 +341,9 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <TopProductsCard items={x.products90} />
         <TopCustomersCard items={x.customers90} />
-        <VatCard vat={x.vat} />
+        {getCountryConfig(d.org?.country).taxSystem !== "none" && (
+          <VatCard vat={x.vat} country={getCountryConfig(d.org?.country)} />
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

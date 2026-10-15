@@ -102,6 +102,7 @@ export function usePurchaseMutations() {
       const ctx = resolveTaxContext({
         sellerCountry: org.country,
         sellerState: org.state,
+        sellerTaxId: org.tax_id,
         currency: org.currency,
         customer: supplier,
         treatment: "domestic",

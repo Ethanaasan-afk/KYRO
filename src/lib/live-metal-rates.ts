@@ -3,6 +3,8 @@
  * Shop metal_rates remain the source of truth for invoices.
  */
 
+import { COUNTRIES } from "@/lib/vat/countries";
+
 export const TROY_OZ_TO_GRAMS = 31.1035;
 
 /** Standard gold purity multipliers vs 24K fine gold. */
@@ -15,14 +17,35 @@ export const GOLD_PURITY_MULTIPLIERS: Record<string, number> = {
 
 export type LiveMetalKind = "gold" | "silver" | "platinum" | "palladium" | "diamond";
 
-/** Currency live rates are fetched and stored in (rows before the VAT switch are INR). */
+/** Currency used when a business has none (rows are stored per currency). */
 export const LIVE_RATES_CURRENCY = "AED";
+
+/** Every currency a KYRO business can bill in, plus US dollars. */
+export const LIVE_CURRENCIES: readonly string[] = Array.from(
+  new Set(["USD", ...Object.values(COUNTRIES).map((c) => c.currency)])
+);
+
+/** A supported upper-case currency code, or the default. Limits paid Metals.Dev calls to real currencies. */
+export function normalizeLiveCurrency(code: unknown): string {
+  const c = typeof code === "string" ? code.trim().toUpperCase() : "";
+  return LIVE_CURRENCIES.includes(c) ? c : LIVE_RATES_CURRENCY;
+}
+
+/** Currencies fixed to the US dollar: units of currency per 1 USD. */
+const USD_PEGS: Record<string, number> = {
+  USD: 1,
+  AED: 3.6725,
+  SAR: 3.75,
+  QAR: 3.64,
+  BHD: 0.376,
+  OMR: 0.3845,
+};
 
 export type LiveMetalRateRow = {
   id: string;
   metal_type: string;
   karat_or_purity: string;
-  /** Rate per gram in LIVE_RATES_CURRENCY (column name predates the AED switch) */
+  /** Rate per gram in the row's currency (column name predates multi-currency) */
   rate_per_gram_inr: number;
   fetched_at: string;
   currency?: string;
@@ -193,11 +216,15 @@ export type MetalsDevTimeseriesResponse = {
   error_message?: string;
 };
 
-/** Convert a day's metals (AED/toz, or USD/toz + AED fx) into live_metal_rates rows. */
+/**
+ * Convert a day's metals into live_metal_rates rows in the target currency.
+ * Input is either already in the target currency, or USD/toz plus a `currencies`
+ * map of USD per one unit of each currency (Metals.Dev timeseries).
+ */
 export function buildLiveRateInsertsFromMetals(
   metals: Record<string, number>,
   fetchedAt: string,
-  opts?: { currency?: string; currencies?: Record<string, number>; unit?: string }
+  opts?: { currency?: string; currencies?: Record<string, number>; unit?: string; target?: string }
 ): Omit<LiveMetalRateRow, "id">[] {
   let goldToz = Number(metals.gold);
   let silverToz = Number(metals.silver);
@@ -208,17 +235,19 @@ export function buildLiveRateInsertsFromMetals(
   );
 
   // Timeseries often returns USD toz + currencies[AED] as USD-per-AED (i.e. 0.272 ≈ 1/3.6725)
-  const target = LIVE_RATES_CURRENCY;
+  const target = (opts?.target ?? LIVE_RATES_CURRENCY).toUpperCase();
   const currency = (opts?.currency ?? "USD").toUpperCase();
-  const fxUsdPerTarget = Number(opts?.currencies?.[target]);
+  // The timeseries payload sometimes omits the exchange rate. Without a conversion the
+  // day would be stored as US dollars and show up as a huge fake jump, so fall back to a
+  // fixed peg (Gulf currencies are pegged to USD) and otherwise skip the day.
+  const fxUsdPerTarget = Number(opts?.currencies?.[target]) || (USD_PEGS[target] ? 1 / USD_PEGS[target] : NaN);
   if (currency !== target) {
     const targetPerUsd = fxUsdPerTarget ? 1 / fxUsdPerTarget : NaN;
-    if (Number.isFinite(targetPerUsd) && targetPerUsd > 0) {
-      goldToz *= targetPerUsd;
-      silverToz *= targetPerUsd;
-      platinumToz *= targetPerUsd;
-      palladiumToz *= targetPerUsd;
-    }
+    if (!(Number.isFinite(targetPerUsd) && targetPerUsd > 0)) return [];
+    goldToz *= targetPerUsd;
+    silverToz *= targetPerUsd;
+    platinumToz *= targetPerUsd;
+    palladiumToz *= targetPerUsd;
   }
 
   const unit = (opts?.unit ?? "toz").toLowerCase();
@@ -293,14 +322,16 @@ export function buildLiveRateInsertsFromMetals(
   return rows;
 }
 
-/** Build insert rows from a Metals.Dev /v1/latest response (AED, toz). */
+/** Build insert rows from a Metals.Dev /v1/latest response (requested currency, toz). */
 export function buildLiveRateInserts(
   data: MetalsDevLatestResponse,
-  fetchedAt = new Date().toISOString()
+  fetchedAt = new Date().toISOString(),
+  target = data.currency ?? LIVE_RATES_CURRENCY
 ): Omit<LiveMetalRateRow, "id">[] {
   const rows = buildLiveRateInsertsFromMetals(data.metals ?? {}, fetchedAt, {
     currency: data.currency,
     unit: data.unit,
+    target,
   });
   if (!rows.length) {
     throw new Error("Metals.Dev response missing gold/silver/platinum/palladium prices");
@@ -310,7 +341,8 @@ export function buildLiveRateInserts(
 
 /** Build 7-day history rows from a timeseries payload (one snapshot per calendar day). */
 export function buildTimeseriesHistoryInserts(
-  data: MetalsDevTimeseriesResponse
+  data: MetalsDevTimeseriesResponse,
+  target = LIVE_RATES_CURRENCY
 ): Omit<LiveMetalRateRow, "id">[] {
   const out: Omit<LiveMetalRateRow, "id">[] = [];
   const rates = data.rates ?? {};
@@ -322,6 +354,7 @@ export function buildTimeseriesHistoryInserts(
         currency: data.currency,
         unit: data.unit,
         currencies: day.currencies,
+        target,
       })
     );
   }

@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { AppUser } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { inviteUserSchema } from "@/lib/validations";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodFormResolver } from "@/lib/form-resolver";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useState } from "react";
@@ -49,7 +49,7 @@ export default function UsersPage() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<InviteForm>({
-    resolver: zodResolver(inviteUserSchema),
+    resolver: zodFormResolver(inviteUserSchema),
     defaultValues: { role: "staff", email: "", full_name: "", password: "" },
   });
 

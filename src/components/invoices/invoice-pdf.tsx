@@ -425,8 +425,7 @@ function lineParticulars(
     const locked = item.rate_locked_at_sale ?? item.metal_rate_used;
     if (huid) meta.push(`Hallmark: ${huid}`);
     if (purity) meta.push(`Purity: ${purity.toUpperCase()}`);
-    if (locked != null) meta.push(`Rate locked: ${inr(locked)}/g`);
-    if (item.rate_source) meta.push(`Source: ${item.rate_source}`);
+    if (locked != null) meta.push(`Rate: ${inr(locked)}/g`);
     if (item.gross_weight != null) meta.push(`Gross: ${item.gross_weight}g`);
     if (item.net_weight != null) meta.push(`Net: ${item.net_weight}g`);
     if (item.making_charge_amount != null) {

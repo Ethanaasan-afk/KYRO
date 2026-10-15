@@ -5,6 +5,7 @@ import {
   diamondIndexFromGold24,
   isLiveRatesStale,
   LIVE_RATES_CURRENCY,
+  normalizeLiveCurrency,
   withDiamondIndexRows,
   type LiveMetalRateRow,
   type MetalsDevLatestResponse,
@@ -48,13 +49,14 @@ function isoDateUTC(d: Date): string {
 }
 
 async function insertLiveRateRows(
-  inserts: Omit<LiveMetalRateRow, "id">[]
+  inserts: Omit<LiveMetalRateRow, "id">[],
+  currency: string
 ): Promise<LiveMetalRateRow[]> {
   if (!inserts.length) return [];
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("live_metal_rates")
-    .insert(inserts.map((r) => ({ ...r, currency: LIVE_RATES_CURRENCY })))
+    .insert(inserts.map((r) => ({ ...r, currency })))
     .select("*");
 
   if (error) {
@@ -68,10 +70,11 @@ async function insertLiveRateRows(
   return (data ?? []) as LiveMetalRateRow[];
 }
 
-export async function refreshLiveMetalRates(): Promise<{
+export async function refreshLiveMetalRates(currencyInput: string = LIVE_RATES_CURRENCY): Promise<{
   rows: LiveMetalRateRow[];
   fetched_at: string;
 }> {
+  const currency = normalizeLiveCurrency(currencyInput);
   const apiKey = getMetalsApiKey();
   if (!apiKey) {
     throw new Error(
@@ -81,7 +84,7 @@ export async function refreshLiveMetalRates(): Promise<{
 
   const url = new URL("https://api.metals.dev/v1/latest");
   url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("currency", LIVE_RATES_CURRENCY);
+  url.searchParams.set("currency", currency);
   url.searchParams.set("unit", "toz");
 
   const res = await fetch(url.toString(), {
@@ -105,8 +108,8 @@ export async function refreshLiveMetalRates(): Promise<{
   }
 
   const fetchedAt = json.timestamp || new Date().toISOString();
-  const inserts = withDiamondIndexRows(buildLiveRateInserts(json, fetchedAt));
-  const data = await insertLiveRateRows(inserts);
+  const inserts = withDiamondIndexRows(buildLiveRateInserts(json, fetchedAt, currency));
+  const data = await insertLiveRateRows(inserts, currency);
   return {
     rows: data,
     fetched_at: fetchedAt,
@@ -117,7 +120,11 @@ export async function refreshLiveMetalRates(): Promise<{
  * Pull last N days from Metals.Dev timeseries and insert any calendar days
  * we do not already have (so the 7-day chart works immediately).
  */
-export async function backfillLiveRateHistory(days = 7): Promise<number> {
+export async function backfillLiveRateHistory(
+  days = 7,
+  currencyInput: string = LIVE_RATES_CURRENCY
+): Promise<number> {
+  const currency = normalizeLiveCurrency(currencyInput);
   const apiKey = getMetalsApiKey();
   if (!apiKey) return 0;
 
@@ -146,7 +153,7 @@ export async function backfillLiveRateHistory(days = 7): Promise<number> {
     return 0;
   }
 
-  const existing = await getLiveRateHistory(days + 1);
+  const existing = await getLiveRateHistory(days + 1, currency);
   const daysWithGold = new Set(
     existing
       .filter((r) => r.metal_type === "gold" && r.karat_or_purity === "24k")
@@ -158,7 +165,7 @@ export async function backfillLiveRateHistory(days = 7): Promise<number> {
       .map((r) => r.fetched_at.slice(0, 10))
   );
 
-  const fromSeries = withDiamondIndexRows(buildTimeseriesHistoryInserts(json));
+  const fromSeries = withDiamondIndexRows(buildTimeseriesHistoryInserts(json, currency));
   const inserts: Omit<LiveMetalRateRow, "id">[] = [];
 
   for (const row of fromSeries) {
@@ -183,13 +190,16 @@ export async function backfillLiveRateHistory(days = 7): Promise<number> {
   });
 
   if (!unique.length) return 0;
-  await insertLiveRateRows(unique);
+  await insertLiveRateRows(unique, currency);
   return unique.length;
 }
 
 /** If gold history exists but diamond rows are missing, seed diamond from gold. */
-export async function ensureDiamondIndexFromHistory(days = 7): Promise<number> {
-  const history = await getLiveRateHistory(days);
+export async function ensureDiamondIndexFromHistory(
+  days = 7,
+  currency: string = LIVE_RATES_CURRENCY
+): Promise<number> {
+  const history = await getLiveRateHistory(days, currency);
   const goldByDay = new Map<string, LiveMetalRateRow>();
   const diamondDays = new Set<string>();
   for (const row of history) {
@@ -213,16 +223,18 @@ export async function ensureDiamondIndexFromHistory(days = 7): Promise<number> {
     });
   }
   if (!inserts.length) return 0;
-  await insertLiveRateRows(inserts);
+  await insertLiveRateRows(inserts, currency);
   return inserts.length;
 }
 
-export async function getLatestLiveRates(): Promise<LiveMetalRateRow[]> {
+export async function getLatestLiveRates(
+  currency: string = LIVE_RATES_CURRENCY
+): Promise<LiveMetalRateRow[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("live_metal_rates")
     .select("*")
-    .eq("currency", LIVE_RATES_CURRENCY)
+    .eq("currency", currency)
     .order("fetched_at", { ascending: false })
     .limit(200);
   if (error) {
@@ -242,14 +254,17 @@ export async function getLatestLiveRates(): Promise<LiveMetalRateRow[]> {
   return Array.from(latest.values());
 }
 
-export async function getLiveRateHistory(days = 7): Promise<LiveMetalRateRow[]> {
+export async function getLiveRateHistory(
+  days = 7,
+  currency: string = LIVE_RATES_CURRENCY
+): Promise<LiveMetalRateRow[]> {
   const admin = createAdminClient();
   const since = new Date();
   since.setDate(since.getDate() - days);
   const { data, error } = await admin
     .from("live_metal_rates")
     .select("*")
-    .eq("currency", LIVE_RATES_CURRENCY)
+    .eq("currency", currency)
     .gte("fetched_at", since.toISOString())
     .order("fetched_at", { ascending: true })
     .limit(2000);
@@ -266,14 +281,15 @@ function uniqueGoldDays(history: LiveMetalRateRow[]): number {
 }
 
 /** Refresh only when cache is older than 10 minutes; backfill trend history when sparse. */
-export async function ensureFreshLiveRates(): Promise<{
+export async function ensureFreshLiveRates(currencyInput: string = LIVE_RATES_CURRENCY): Promise<{
   rows: LiveMetalRateRow[];
   history: LiveMetalRateRow[];
   refreshed: boolean;
   unavailable?: string;
 }> {
+  const currency = normalizeLiveCurrency(currencyInput);
   try {
-    let rows = await getLatestLiveRates();
+    let rows = await getLatestLiveRates(currency);
     const newest = rows.reduce<string | null>((acc, r) => {
       if (!acc || r.fetched_at > acc) return r.fetched_at;
       return acc;
@@ -283,8 +299,8 @@ export async function ensureFreshLiveRates(): Promise<{
     let refreshError: string | undefined;
     if (isLiveRatesStale(newest)) {
       try {
-        await refreshLiveMetalRates();
-        rows = await getLatestLiveRates();
+        await refreshLiveMetalRates(currency);
+        rows = await getLatestLiveRates(currency);
         refreshed = true;
       } catch (e) {
         refreshError = (e as Error).message || "Live rates unavailable right now";
@@ -299,20 +315,20 @@ export async function ensureFreshLiveRates(): Promise<{
       }
     }
 
-    let history = await getLiveRateHistory(7);
+    let history = await getLiveRateHistory(7, currency);
     if (uniqueGoldDays(history) < 7) {
       try {
-        await backfillLiveRateHistory(7);
-        history = await getLiveRateHistory(7);
+        await backfillLiveRateHistory(7, currency);
+        history = await getLiveRateHistory(7, currency);
       } catch {
         /* keep whatever we have */
       }
     }
 
     try {
-      await ensureDiamondIndexFromHistory(7);
-      history = await getLiveRateHistory(7);
-      rows = await getLatestLiveRates();
+      await ensureDiamondIndexFromHistory(7, currency);
+      history = await getLiveRateHistory(7, currency);
+      rows = await getLatestLiveRates(currency);
     } catch {
       /* optional */
     }

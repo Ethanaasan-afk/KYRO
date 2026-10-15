@@ -1759,6 +1759,7 @@ export const demoDb = {
     const ctx = resolveTaxContext({
       sellerCountry: s.organization.country,
       sellerState: s.organization.state,
+      sellerTaxId: s.organization.tax_id,
       currency: s.organization.currency,
       customer: supplier,
       treatment: "domestic",

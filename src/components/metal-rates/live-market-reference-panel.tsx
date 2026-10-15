@@ -6,7 +6,7 @@ import {
   type LiveMetalRateRow,
   type LiveRateChange,
 } from "@/lib/live-metal-rates";
-import { cn, formatCurrency, getDefaultCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { LiveLineChart } from "@/components/charts/studio-charts";
 import { format, parseISO } from "date-fns";
 import { Copy } from "lucide-react";
@@ -78,13 +78,23 @@ export function LiveMarketReferencePanel({
   unavailable,
   loading,
   onUseRate,
+  currency,
+  orgCurrency,
+  onCurrencyChange,
 }: {
   rates: LiveMetalRateRow[];
   history: LiveMetalRateRow[];
   unavailable?: string | null;
   loading?: boolean;
   onUseRate: (draftKey: string, rate: number) => void;
+  /** Currency the rates are shown in */
+  currency: string;
+  /** The business's billing currency; only these rates can be copied into shop rates */
+  orgCurrency: string;
+  onCurrencyChange?: (currency: string) => void;
 }) {
+  const canCopy = currency === orgCurrency;
+  const currencyChoices = Array.from(new Set([orgCurrency, "USD"]));
   const byKey = useMemo(() => {
     const map = new Map<string, LiveMetalRateRow>();
     for (const row of rates) {
@@ -136,13 +146,39 @@ export function LiveMarketReferencePanel({
           <p className="mt-1 max-w-2xl text-xs text-slate">
             Live market reference - for your convenience, not used in invoices unless you copy it
             below.
+            {!canCopy && ` Shown in ${currency} for comparison; switch to ${orgCurrency} to copy a rate.`}
           </p>
         </div>
-        {newestFetchedAt && rates.length > 0 && (
-          <p className="font-mono text-[11px] text-slate-dim">
-            as of {formatAsOf(newestFetchedAt)}
-          </p>
-        )}
+        <div className="flex flex-col items-end gap-1.5">
+          {onCurrencyChange && currencyChoices.length > 1 && (
+            <div
+              role="radiogroup"
+              aria-label="Currency"
+              className="inline-flex rounded-full border border-border bg-surface p-0.5"
+            >
+              {currencyChoices.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  role="radio"
+                  aria-checked={currency === code}
+                  onClick={() => onCurrencyChange(code)}
+                  className={cn(
+                    "h-7 rounded-full px-3 text-[11px] font-semibold transition-colors",
+                    currency === code ? "bg-ink text-surface" : "text-slate hover:text-ink"
+                  )}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+          )}
+          {newestFetchedAt && rates.length > 0 && (
+            <p className="font-mono text-[11px] text-slate-dim">
+              as of {formatAsOf(newestFetchedAt)}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 min-h-[420px]">
@@ -191,7 +227,7 @@ export function LiveMarketReferencePanel({
                       </p>
                       <div className="mt-1 flex flex-wrap items-end gap-2">
                         <p className="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-                          {row ? formatCurrency(Number(row.rate_per_gram_inr)) : "-"}
+                          {row ? formatCurrency(Number(row.rate_per_gram_inr), currency) : "-"}
                           <span className="ml-1 text-sm font-medium text-slate">
                             {rateUnit(heroSlot.metal_type)}
                           </span>
@@ -203,7 +239,7 @@ export function LiveMarketReferencePanel({
                       </p>
                     </div>
                   </div>
-                  {heroSlot.draftKey && row && (
+                  {canCopy && heroSlot.draftKey && row && (
                     <button
                       type="button"
                       onClick={() =>
@@ -244,7 +280,7 @@ export function LiveMarketReferencePanel({
                       </p>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <p className="font-display text-lg font-semibold text-ink">
-                          {row ? formatCurrency(Number(row.rate_per_gram_inr)) : "-"}
+                          {row ? formatCurrency(Number(row.rate_per_gram_inr), currency) : "-"}
                           <span className="ml-1 text-xs font-medium text-slate">
                             {rateUnit(slot.metal_type)}
                           </span>
@@ -259,7 +295,7 @@ export function LiveMarketReferencePanel({
                           Gold-linked 1ct index (reference)
                         </p>
                       )}
-                      {slot.draftKey && row && (
+                      {canCopy && slot.draftKey && row && (
                         <button
                           type="button"
                           onClick={() =>
@@ -300,7 +336,7 @@ export function LiveMarketReferencePanel({
                   color: s.color,
                   label: s.label,
                 }))}
-                unit={`${getDefaultCurrency()}/g`}
+                unit={`${currency}/g`}
               />
             </div>
           </div>
